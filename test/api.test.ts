@@ -105,6 +105,24 @@ check('requête d’un autre site refusée (CSRF)', csrf.status === 403);
 const anon = await new Client().get('/api/bookmarks');
 check('API protégée sans session', anon.status === 401);
 
+console.log('Connexion par code (même fenêtre)');
+{
+  const c = new Client();
+  const r = await c.post('/api/auth/request', { email: 'admin@exemple.ca' });
+  check('le courriel contient un code à 6 chiffres', /^\d{6}$/.test(r.data.devCode || ''), r.data);
+  const wrong = String((Number(r.data.devCode) + 1) % 1000000).padStart(6, '0');
+  check('mauvais code refusé', (await c.post('/api/auth/code', { email: 'admin@exemple.ca', code: wrong })).status === 400);
+  check('code d’une autre adresse refusé', (await c.post('/api/auth/code', { email: 'personne@exemple.ca', code: r.data.devCode })).status === 400);
+  const good = await c.post('/api/auth/code', { email: 'ADMIN@exemple.ca', code: r.data.devCode.slice(0, 3) + ' ' + r.data.devCode.slice(3) });
+  check('bon code (avec espace) : connecté', good.status === 200 && (await c.get('/api/me')).data.user?.role === 'admin');
+  check('un code ne sert qu’une fois', (await new Client().post('/api/auth/code', { email: 'admin@exemple.ca', code: r.data.devCode })).status === 400);
+  const c2 = new Client();
+  const r2 = await c2.post('/api/auth/request', { email: 'admin@exemple.ca' });
+  for (let i = 0; i < 5; i++) await c2.post('/api/auth/code', { email: 'admin@exemple.ca', code: '000000' === r2.data.devCode ? '111111' : '000000' });
+  check('après 5 essais ratés, même le bon code est refusé', (await c2.post('/api/auth/code', { email: 'admin@exemple.ca', code: r2.data.devCode })).status === 400);
+  check('le lien du même courriel fonctionne encore', (await c2.post('/api/auth/verify', { token: new URL(r2.data.devLink).searchParams.get('jeton') })).status === 200);
+}
+
 console.log('Signets');
 const b1 = await adminC.post('/api/bookmarks', { url: 'awwwards.com', tags: ['Inspiration', '#design', 'inspiration'] });
 check('ajout d’un signet', b1.status === 201 && b1.data.item.status === 'processing', b1.data);
@@ -258,7 +276,7 @@ check('déconnexion', (await adminC.get('/api/me')).data.user === null);
 
 let spam = 0;
 for (let i = 0; i < 7; i++) if ((await new Client().post('/api/auth/request', { email: 'admin@exemple.ca' })).data.devLink) spam++;
-check('limite de 5 liens par 15 minutes', spam === 4, spam); // 1 déjà utilisé plus haut
+check('limite de 5 liens par 15 minutes', spam === 2, spam); // 3 déjà demandés plus haut
 
 globalThis.fetch = realFetch;
 console.log(`\n${passed} réussis, ${failed} échoués`);

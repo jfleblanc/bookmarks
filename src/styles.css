@@ -254,6 +254,8 @@ button.tag:hover { color: var(--ink); text-decoration: underline; }
 .narrow p { margin: 0; color: var(--muted); }
 .narrow form { display: flex; flex-direction: column; gap: 12px; margin-top: 8px; }
 .narrow .plain { height: 48px; border: 0; border-bottom: 2px solid var(--ink); background: transparent; padding: 0; font: 500 18px var(--f-body); outline: none; }
+.narrow .code-input { font: 600 28px var(--f-mono); letter-spacing: .18em; }
+.narrow .small { color: var(--muted); }
 .protobox { border: 1px dashed var(--faint); padding: 12px 14px; font-size: 14px; color: var(--muted); display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 .ext .logo { padding-top: env(safe-area-inset-top, 0px); }
 .pub-head { padding-top: 40px; max-width: 900px; }

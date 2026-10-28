@@ -1,6 +1,6 @@
 import type { Env, CaptureJob } from './env';
 import { Router } from './router';
-import { type Ctx, loadUser, requestLogin, verifyLogin, logout, me, updatePrefs, getInvite, acceptInvite, appUrl } from './auth';
+import { type Ctx, loadUser, requestLogin, verifyLogin, verifyCode, logout, me, updatePrefs, getInvite, acceptInvite, appUrl } from './auth';
 import * as admin from './admin';
 import * as bm from './bookmarks';
 import * as col from './collections';
@@ -12,6 +12,7 @@ const api = new Router<Ctx>()
   // Compte et connexion
   .post('/api/auth/request', requestLogin)
   .post('/api/auth/verify', verifyLogin)
+  .post('/api/auth/code', verifyCode)
   .post('/api/auth/logout', logout)
   .get('/api/me', me)
   .patch('/api/me/prefs', updatePrefs)

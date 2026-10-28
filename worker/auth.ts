@@ -94,16 +94,28 @@ export async function sendMail(env: Env, to: string, subject: string, html: stri
   if (!res.ok) console.error('Resend a refusé le courriel', res.status, await res.text());
 }
 
-function loginEmail(link: string) {
-  const text = `Bonjour,\n\nVoici votre lien de connexion à bookmarks :\n${link}\n\nIl fonctionne une seule fois et expire dans ${LOGIN_LINK_MINUTES} minutes.\nSi vous n’avez rien demandé, ignorez ce courriel.`;
+function loginEmail(link: string, code: string) {
+  const spaced = `${code.slice(0, 3)} ${code.slice(3)}`;
+  const text = `Bonjour,\n\nVotre code de connexion à bookmarks : ${spaced}\nTapez-le dans la fenêtre où vous l’avez demandé.\n\nOu cliquez ce lien : ${link}\n\nLe code et le lien fonctionnent une seule fois et expirent dans ${LOGIN_LINK_MINUTES} minutes.\nSi vous n’avez rien demandé, ignorez ce courriel.`;
   const html = `<div style="font-family:Helvetica,Arial,sans-serif;font-size:16px;line-height:1.5;color:#0d0d0d;max-width:480px">
     <p>Bonjour,</p>
-    <p>Voici votre lien de connexion à <strong>bookmarks</strong>.</p>
+    <p>Votre code de connexion à <strong>bookmarks</strong> :</p>
+    <p style="font-family:Menlo,Consolas,monospace;font-size:32px;font-weight:700;letter-spacing:6px;margin:8px 0 4px">${spaced}</p>
+    <p style="color:#5e5e5e;font-size:14px;margin-top:0">Tapez-le dans la fenêtre où vous l’avez demandé.</p>
+    <p>Ou, sur cet appareil :</p>
     <p><a href="${link}" style="display:inline-block;background:#0d0d0d;color:#ffffff;padding:12px 20px;text-decoration:none;font-weight:600">Me connecter</a></p>
-    <p style="color:#5e5e5e;font-size:14px">Il fonctionne une seule fois et expire dans ${LOGIN_LINK_MINUTES} minutes. Si vous n’avez rien demandé, ignorez ce courriel.</p>
+    <p style="color:#5e5e5e;font-size:14px">Le code et le lien fonctionnent une seule fois et expirent dans ${LOGIN_LINK_MINUTES} minutes. Si vous n’avez rien demandé, ignorez ce courriel.</p>
   </div>`;
   return { text, html };
 }
+
+/** Code à 6 chiffres, tiré au hasard de façon sûre */
+function sixDigits(): string {
+  const v = new Uint32Array(1);
+  crypto.getRandomValues(v);
+  return String(v[0] % 1_000_000).padStart(6, '0');
+}
+const codeHash = (userId: string, code: string) => sha256(`${userId}:${code}`);
 
 /* ---------- Connexion par lien magique ---------- */
 
@@ -125,22 +137,24 @@ export async function requestLogin(ctx: Ctx) {
   }
 
   let devLink: string | undefined;
+  let devCode: string | undefined;
   if (user && user.active) {
     // Limite : 5 liens par 15 minutes pour une même adresse
     const recent = await env.DB.prepare(`SELECT COUNT(*) AS n FROM login_tokens WHERE user_id = ? AND created_at > ?`)
       .bind(user.id, now() - LOGIN_LINK_MINUTES * 60_000).first<{ n: number }>();
     if (!recent || recent.n < 5) {
       const token = randomToken();
-      await env.DB.prepare(`INSERT INTO login_tokens (token_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)`)
-        .bind(await sha256(token), user.id, now(), now() + LOGIN_LINK_MINUTES * 60_000).run();
+      const code = sixDigits();
+      await env.DB.prepare(`INSERT INTO login_tokens (token_hash, user_id, created_at, expires_at, code_hash) VALUES (?, ?, ?, ?, ?)`)
+        .bind(await sha256(token), user.id, now(), now() + LOGIN_LINK_MINUTES * 60_000, await codeHash(user.id, code)).run();
       const link = `${appUrl(ctx)}/connexion/lien?jeton=${encodeURIComponent(token)}`;
-      const { text, html } = loginEmail(link);
-      ctx.waitUntil(sendMail(env, email, 'Votre lien de connexion à bookmarks', html, text));
-      if (env.DEV_MODE === '1') devLink = link;
+      const { text, html } = loginEmail(link, code);
+      ctx.waitUntil(sendMail(env, email, `${code} : votre code de connexion à bookmarks`, html, text));
+      if (env.DEV_MODE === '1') { devLink = link; devCode = code; }
     }
   }
   // Toujours la même réponse : on ne révèle pas qui a un compte
-  return json({ ok: true, ...(devLink ? { devLink } : {}) });
+  return json({ ok: true, ...(devLink ? { devLink, devCode } : {}) });
 }
 
 export async function verifyLogin(ctx: Ctx) {
@@ -161,6 +175,29 @@ export async function verifyLogin(ctx: Ctx) {
     ctx.env.DB.prepare(`DELETE FROM login_tokens WHERE expires_at < ?`).bind(now() - DAY),
     ctx.env.DB.prepare(`DELETE FROM sessions WHERE expires_at < ?`).bind(now())
   ]));
+  return json({ ok: true });
+}
+
+/** Connexion avec le code reçu par courriel, dans la fenêtre où il a été demandé */
+export async function verifyCode(ctx: Ctx) {
+  const body = await readJson<{ email?: string; code?: string }>(ctx.req);
+  const email = normalizeEmail(body.email);
+  const code = String(body.code || '').replace(/\D/g, '');
+  const fail = () => new HttpError(400, 'invalid_code', 'Ce code est incorrect ou a expiré. Vérifiez le dernier courriel reçu, ou demandez un nouveau code.');
+  if (code.length !== 6) throw fail();
+  const user = await ctx.env.DB.prepare(`SELECT * FROM users WHERE email = ? AND active = 1`).bind(email).first<User>();
+  if (!user) throw fail();
+  const hash = await codeHash(user.id, code);
+  // 5 essais par code : au-delà, le code ne fonctionne plus (le lien du courriel reste valide)
+  const used = await ctx.env.DB.prepare(
+    `UPDATE login_tokens SET used_at = ? WHERE user_id = ? AND code_hash = ? AND used_at IS NULL AND expires_at > ? AND attempts < 5 RETURNING token_hash`
+  ).bind(now(), user.id, hash, now()).first();
+  if (!used) {
+    await ctx.env.DB.prepare(`UPDATE login_tokens SET attempts = attempts + 1 WHERE user_id = ? AND used_at IS NULL AND expires_at > ?`)
+      .bind(user.id, now()).run();
+    throw fail();
+  }
+  await createSession(ctx, user.id);
   return json({ ok: true });
 }
 
