@@ -29,12 +29,6 @@ export default function BookmarksView() {
   const loadingMore = useRef(false);
   const reqId = useRef(0);
   const localList = useRef<Bookmark[]>([]); // hors ligne : tous les signets filtrés de la copie locale
-  const urlInput = useRef<HTMLInputElement>(null);
-
-  // À l'ouverture : curseur dans le champ d'ajout (pas sur téléphone, pour ne pas ouvrir le clavier)
-  useEffect(() => {
-    if (!window.matchMedia('(pointer: coarse)').matches && !urlInput.current?.value) urlInput.current?.focus();
-  }, []);
 
   const [url, setUrl] = useState('');
   const [newTags, setNewTags] = useState<string[]>([]);
@@ -224,7 +218,7 @@ export default function BookmarksView() {
     <section>
       <form className="add" noValidate onSubmit={e => { e.preventDefault(); add(); }}>
         <label className="lbl" htmlFor="urlInput">URL</label>
-        <input className="url-input" id="urlInput" ref={urlInput} type="url" inputMode="url" placeholder="Coller une adresse" autoComplete="off"
+        <input className="url-input" id="urlInput" type="url" inputMode="url" placeholder="Coller une adresse" autoComplete="off"
           value={url} onChange={e => { setUrl(e.target.value); if (notice) setNotice(null); }} />
         <span className="lbl" aria-hidden="true">TAGS</span>
         <div className="tagfield"><TagInput id="addTags" value={newTags} onChange={setNewTags} known={tags} onSubmitEmpty={add} /></div>
