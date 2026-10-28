@@ -161,6 +161,22 @@ export async function listLite(ctx: Ctx) {
   return json({ items: results.map(r => ({ id: r.id, title: r.title, domain: r.domain, tags: tags.get(r.id) || [] })) });
 }
 
+/** Ce site est-il déjà enregistré ? (utilisé par l'extension) */
+export async function lookup(ctx: Ctx) {
+  const user = requireUser(ctx);
+  let norm: string;
+  try {
+    norm = normalizeUrl(parseUrl(ctx.url.searchParams.get('url')));
+  } catch {
+    return json({ item: null });
+  }
+  const b = await ctx.env.DB.prepare(`SELECT * FROM bookmarks WHERE user_id = ? AND norm_url = ? AND deleted_at IS NULL`)
+    .bind(user.id, norm).first<BookmarkRow>();
+  if (!b) return json({ item: null });
+  const [item] = await withTags(ctx.env, [b]);
+  return json({ item });
+}
+
 export async function getOne(ctx: Ctx, p: Record<string, string>) {
   const b = await getOwned(ctx, p.id);
   if (b.deleted_at) throw new HttpError(404, 'not_found', 'Signet introuvable.');

@@ -6,8 +6,15 @@ export interface Ctx {
   env: Env;
   url: URL;
   user: User | null;
+  /** Comment la requête est authentifiée : session du site, ou jeton personnel (extension) */
+  via: 'session' | 'token' | null;
   waitUntil: (p: Promise<unknown>) => void;
   cookies: string[];
+}
+
+export function bearerToken(req: Request): string | null {
+  const m = (req.headers.get('authorization') || '').match(/^Bearer\s+(bm_[A-Za-z0-9_-]{20,})$/);
+  return m ? m[1] : null;
 }
 
 const SESSION_COOKIE = 'bm_session';
@@ -20,6 +27,22 @@ const isSecure = (ctx: Ctx) => ctx.url.protocol === 'https:';
 /* ---------- Sessions ---------- */
 
 export async function loadUser(ctx: Ctx): Promise<User | null> {
+  // Jeton personnel (extension) : la requête n'utilise jamais le témoin de session
+  if (ctx.req.headers.has('authorization')) {
+    const bearer = bearerToken(ctx.req);
+    if (!bearer) return null;
+    const hash = await sha256(bearer);
+    const row = await ctx.env.DB.prepare(
+      `SELECT u.*, t.id AS t_id, t.last_used_at AS t_used FROM api_tokens t JOIN users u ON u.id = t.user_id WHERE t.token_hash = ?`
+    ).bind(hash).first<User & { t_id: string; t_used: number | null }>();
+    if (!row || !row.active) return null;
+    if (!row.t_used || now() - row.t_used > 3_600_000) {
+      ctx.waitUntil(ctx.env.DB.prepare(`UPDATE api_tokens SET last_used_at = ? WHERE id = ?`).bind(now(), row.t_id).run());
+    }
+    ctx.via = 'token';
+    const { t_id, t_used, ...user } = row;
+    return user as User;
+  }
   const token = getCookie(ctx.req, SESSION_COOKIE);
   if (!token) return null;
   const hash = await sha256(token);
@@ -34,6 +57,7 @@ export async function loadUser(ctx: Ctx): Promise<User | null> {
     ctx.cookies.push(cookie(SESSION_COOKIE, token, SESSION_DAYS * 86400, isSecure(ctx)));
   }
   const { s_exp, ...user } = row;
+  ctx.via = 'session';
   return user as User;
 }
 

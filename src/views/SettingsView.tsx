@@ -3,6 +3,7 @@ import { api, type Bookmark, type User } from '../api';
 import { useAuth, useToast } from '../context';
 import { Switch } from '../components/Modal';
 import { Thumb } from '../components/Cards';
+import { ExtensionSettings } from '../components/ExtensionSettings';
 
 export default function SettingsView() {
   const { user, setUser } = useAuth();
@@ -52,6 +53,7 @@ export default function SettingsView() {
             </>
           )}
         </section>
+        <ExtensionSettings />
         <section>
           <h2>Compte</h2>
           <p className="note">Connecté avec <strong>{user?.email}</strong>. Pour vous reconnecter, vous recevez un lien par courriel : il n’y a pas de mot de passe.</p>

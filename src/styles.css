@@ -235,6 +235,10 @@ button.tag:hover { color: var(--ink); text-decoration: underline; }
 .field { display: flex; flex-direction: column; gap: 6px; padding: 16px 0; border-top: 1px solid var(--line); margin-top: 12px; }
 .field .note { margin: 0 0 0 50px; }
 .switch:disabled { opacity: .4; }
+.set .sub-h { font-size: 17px; margin-top: 28px; }
+.steps { margin: 14px 0 16px; padding-left: 20px; display: grid; gap: 6px; max-width: 70ch; font-size: 15px; }
+.steps code, .note code { font: 13px var(--f-mono); background: var(--soft); padding: 1px 5px; }
+.set .tblwrap { margin-top: 16px; }
 .pv { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
 .pv figcaption { font: 11px var(--f-mono); color: var(--muted); overflow-wrap: anywhere; }
 

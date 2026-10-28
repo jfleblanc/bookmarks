@@ -21,6 +21,7 @@ worker/          API et traitement en arrière-plan (TypeScript, sans dépendanc
 migrations/      schéma de la base D1
 src/             interface React
 public/          icônes, manifeste PWA, service worker
+extension/       extension Chrome / Brave (Manifest V3, sans étape de compilation)
 test/api.test.ts test de bout en bout de l’API (Bun, sans Cloudflare)
 ```
 
@@ -66,6 +67,18 @@ npm run dev                            # interface sur http://localhost:5173
 En local, la capture d’écran (Browser Rendering) n’est pas disponible : les signets reçoivent leur titre et leur favicon, sans vignette.
 
 Test de l’API sans Cloudflare : `bun test/api.test.ts`
+
+## Extension Chrome / Brave
+
+Le dossier `extension/` contient l’extension. L’app en sert une copie compressée à `/bookmarks-extension.zip` (lien dans *Réglages*). Après une modification de l’extension, régénérez ce fichier :
+
+```bash
+cd extension && zip -r ../public/bookmarks-extension.zip . -x '.*' && cd ..
+```
+
+L’adresse du serveur est dans `extension/api.js` (`SERVER`) et dans `extension/manifest.json` (`host_permissions`).
+
+Chaque personne crée son jeton dans *Réglages → Extension de navigateur* et le colle dans l’extension. Un jeton peut seulement ajouter et compléter des signets (ajout, tags, note, ajout à une collection) : il ne peut rien supprimer, ni gérer le partage, les jetons ou l’admin. Il est stocké haché sur le serveur et peut être révoqué à tout moment.
 
 ## Sécurité, en bref
 

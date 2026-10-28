@@ -4,6 +4,7 @@ import { type Ctx, loadUser, requestLogin, verifyLogin, logout, me, updatePrefs,
 import * as admin from './admin';
 import * as bm from './bookmarks';
 import * as col from './collections';
+import * as tokens from './tokens';
 import { capture } from './capture';
 import { HttpError, json, errorResponse } from './util';
 
@@ -26,6 +27,7 @@ const api = new Router<Ctx>()
   // Signets
   .get('/api/bookmarks', bm.list)
   .get('/api/bookmarks/lite', bm.listLite)
+  .get('/api/bookmarks/lookup', bm.lookup)
   .post('/api/bookmarks', bm.create)
   .get('/api/bookmarks/:id', bm.getOne)
   .patch('/api/bookmarks/:id', bm.update)
@@ -44,8 +46,25 @@ const api = new Router<Ctx>()
   .post('/api/collections/:id/regenerate', col.regenerate)
   .post('/api/collections/:id/restore-link', col.restoreLink)
   .post('/api/collections/:id/restore', col.restore)
+  // Jetons personnels (extension de navigateur)
+  .get('/api/tokens', tokens.list)
+  .post('/api/tokens', tokens.create)
+  .delete('/api/tokens/:id', tokens.revoke)
   // Page partagée (publique)
   .get('/api/public/c/:code', col.publicView);
+
+/* Ce qu'un jeton personnel a le droit de faire : ajouter et compléter des signets, rien d'autre
+   (pas de suppression, pas d'admin, pas de gestion des jetons ni du partage). */
+const TOKEN_ROUTES = new Set([
+  'GET /api/me',
+  'GET /api/tags',
+  'GET /api/bookmarks/lookup',
+  'GET /api/bookmarks/:id',
+  'POST /api/bookmarks',
+  'PATCH /api/bookmarks/:id',
+  'GET /api/collections',
+  'POST /api/collections/:id/items'
+]);
 
 const SECURITY_HEADERS: Record<string, string> = {
   'x-content-type-options': 'nosniff',
@@ -54,11 +73,13 @@ const SECURITY_HEADERS: Record<string, string> = {
 
 async function handleApi(req: Request, env: Env, ctxExec: ExecutionContext): Promise<Response> {
   const url = new URL(req.url);
-  const ctx: Ctx = { req, env, url, user: null, waitUntil: p => ctxExec.waitUntil(p), cookies: [] };
+  const ctx: Ctx = { req, env, url, user: null, via: null, waitUntil: p => ctxExec.waitUntil(p), cookies: [] };
+  const usesToken = req.headers.has('authorization');
   let res: Response;
   try {
-    // Protection CSRF : les requêtes qui modifient des données doivent venir de l'app elle-même
-    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+    // Protection CSRF : les requêtes qui modifient des données doivent venir de l'app elle-même.
+    // Une requête avec jeton n'utilise pas le témoin de session : un autre site ne peut pas la forger.
+    if (!usesToken && !['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
       const origin = req.headers.get('origin');
       const allowed = new Set([url.origin, new URL(appUrl(ctx)).origin]);
       if (origin && !allowed.has(origin)) throw new HttpError(403, 'bad_origin', 'Requête refusée.');
@@ -67,6 +88,8 @@ async function handleApi(req: Request, env: Env, ctxExec: ExecutionContext): Pro
     if (!m) throw new HttpError(404, 'not_found', 'Adresse d’API inconnue.');
     if (m === 'method') throw new HttpError(405, 'method_not_allowed', 'Méthode non permise.');
     ctx.user = await loadUser(ctx);
+    if (usesToken && !ctx.user) throw new HttpError(401, 'invalid_token', 'Ce jeton n’est plus valide. Reconnectez l’extension depuis Réglages.');
+    if (ctx.via === 'token' && !TOKEN_ROUTES.has(m.route)) throw new HttpError(403, 'token_scope', 'Action non permise avec un jeton d’extension.');
     res = await m.handler(ctx, m.params);
   } catch (e) {
     res = errorResponse(e);

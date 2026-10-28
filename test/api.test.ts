@@ -50,9 +50,11 @@ const fakeBrowser = async () => ({ newPage: async () => ({ setUserAgent: async (
 /* ---------- Client HTTP de test ---------- */
 class Client {
   cookie = '';
+  bearer = '';
   async call(method: string, path: string, body?: unknown, origin = 'https://bm.test') {
     const headers: Record<string, string> = {};
     if (this.cookie) headers.cookie = this.cookie;
+    if (this.bearer) headers.authorization = `Bearer ${this.bearer}`;
     if (body !== undefined) headers['content-type'] = 'application/json';
     if (method !== 'GET') headers.origin = origin;
     const waits: Promise<unknown>[] = [];
@@ -223,6 +225,30 @@ await adminC.patch(`/api/admin/members/${sid}`, { active: false });
 check('membre désactivé : sa session est fermée', (await student.get('/api/me')).data.user === null);
 const relog = await new Client().post('/api/auth/request', { email: 'etudiant@cegep.ca' });
 check('membre désactivé : aucun lien de connexion', !relog.data.devLink);
+
+console.log('Jetons d’extension');
+const tok = await adminC.post('/api/tokens', { name: 'Brave — portable' });
+check('jeton créé, montré une fois', tok.status === 201 && tok.data.secret.startsWith('bm_') && tok.data.token.name === 'Brave — portable', tok.data);
+const ext = new Client(); ext.bearer = tok.data.secret;
+check('jeton : /api/me', (await ext.get('/api/me')).data.user?.email === 'admin@exemple.ca');
+const lk1 = await ext.get('/api/bookmarks/lookup?url=' + encodeURIComponent('https://www.awwwards.com/'));
+check('jeton : site déjà enregistré reconnu', lk1.data.item?.id === ids[0], lk1.data);
+const lk2 = await ext.get('/api/bookmarks/lookup?url=' + encodeURIComponent('https://nouveau.example.org/page'));
+check('jeton : site inconnu', lk2.data.item === null);
+const evilOrigin = await ext.call('POST', '/api/bookmarks', { url: 'nouveau.example.org/page', tags: ['ext'], note: 'via extension' }, 'chrome-extension://abcdef');
+check('jeton : ajout depuis l’extension (origine extension acceptée)', evilOrigin.status === 201 && evilOrigin.data.item.note === 'via extension', evilOrigin.data);
+await runQueue();
+check('jeton : ajout à une collection', (await ext.post(`/api/collections/${cid}/items`, { bookmarkIds: [evilOrigin.data.item.id] })).data.added === 1);
+check('jeton : suppression interdite', (await ext.del(`/api/bookmarks/${evilOrigin.data.item.id}`)).status === 403);
+check('jeton : admin interdit', (await ext.get('/api/admin/members')).status === 403);
+check('jeton : ne peut pas créer d’autres jetons', (await ext.post('/api/tokens', { name: 'x' })).status === 403);
+check('jeton : ne peut pas changer le partage', (await ext.patch(`/api/collections/${cid}`, { shared: false })).status === 403);
+const both = new Client(); both.bearer = 'bm_faux_jeton_qui_nexiste_pas_du_tout'; both.cookie = adminC.cookie;
+check('jeton invalide : refusé même avec une session valide', (await both.get('/api/me')).status === 401);
+const toks = await adminC.get('/api/tokens');
+check('liste des jetons sans le secret', toks.data.tokens.length === 1 && !('token_hash' in toks.data.tokens[0]) && toks.data.tokens[0].last_used_at);
+await adminC.del(`/api/tokens/${tok.data.token.id}`);
+check('jeton révoqué : refusé', (await ext.get('/api/me')).status === 401);
 
 console.log('Préférences et déconnexion');
 const prefs = await adminC.patch('/api/me/prefs', { bw: true, hoverColor: false, autre: 'ignoré' });

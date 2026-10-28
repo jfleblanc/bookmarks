@@ -4,6 +4,7 @@ export type Handler<C> = (ctx: C, params: Record<string, string>) => Promise<Res
 
 interface Route<C> {
   method: string;
+  pattern: string;
   parts: string[];
   handler: Handler<C>;
 }
@@ -12,7 +13,7 @@ export class Router<C> {
   private routes: Route<C>[] = [];
 
   on(method: string, pattern: string, handler: Handler<C>) {
-    this.routes.push({ method, parts: pattern.split('/').filter(Boolean), handler });
+    this.routes.push({ method, pattern, parts: pattern.split('/').filter(Boolean), handler });
     return this;
   }
   get(p: string, h: Handler<C>) { return this.on('GET', p, h); }
@@ -21,7 +22,7 @@ export class Router<C> {
   delete(p: string, h: Handler<C>) { return this.on('DELETE', p, h); }
 
   /** Renvoie le gestionnaire et les paramètres, « method » si le chemin existe pour une autre méthode, ou null */
-  match(method: string, pathname: string): { handler: Handler<C>; params: Record<string, string> } | 'method' | null {
+  match(method: string, pathname: string): { handler: Handler<C>; params: Record<string, string>; route: string } | 'method' | null {
     const segs = pathname.split('/').filter(Boolean);
     let pathExists = false;
     for (const r of this.routes) {
@@ -35,7 +36,7 @@ export class Router<C> {
       }
       if (!ok) continue;
       pathExists = true;
-      if (r.method === method) return { handler: r.handler, params };
+      if (r.method === method) return { handler: r.handler, params, route: `${r.method} ${r.pattern}` };
     }
     return pathExists ? 'method' : null;
   }

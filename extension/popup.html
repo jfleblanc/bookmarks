@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <title>bookmarks</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <svg class="ribbon" viewBox="0 0 36 48" aria-hidden="true"><path d="M0 0H36V46Q36 48 34.48 46.7L19.52 33.94Q18 32.64 16.48 33.94L1.52 46.7Q0 48 0 46Z"/></svg>
+    <div class="who" id="who"></div>
+  </header>
+
+  <!-- Première utilisation : coller le jeton -->
+  <section id="setup" hidden>
+    <h1>Connecter l’extension</h1>
+    <p>Dans bookmarks, ouvrez <strong>Réglages → Extension de navigateur</strong>, créez un jeton, puis collez-le ici.</p>
+    <p><a href="#" id="openSettings">Ouvrir les réglages de bookmarks ↗</a></p>
+    <form id="setupForm" novalidate>
+      <label class="lbl" for="token">JETON</label>
+      <input id="token" autocomplete="off" spellcheck="false" placeholder="bm_…">
+      <div class="err" id="setupErr" hidden></div>
+      <button class="btn primary" type="submit">Connecter</button>
+    </form>
+  </section>
+
+  <!-- Ajouter la page courante -->
+  <section id="main" hidden>
+    <div class="page">
+      <img id="fav" alt="" width="16" height="16" hidden>
+      <div class="page-text">
+        <div class="page-title" id="pageTitle"></div>
+        <div class="page-domain" id="pageDomain"></div>
+      </div>
+    </div>
+    <p class="state" id="state" hidden></p>
+    <form id="addForm" novalidate>
+      <label class="lbl" for="tagInput">TAGS</label>
+      <div class="ti" id="tagBox">
+        <span id="chips" class="chips"></span>
+        <input id="tagInput" autocomplete="off" placeholder="#…" role="combobox" aria-expanded="false" aria-autocomplete="list">
+        <ul class="sugg" id="sugg" role="listbox" hidden></ul>
+      </div>
+      <label class="lbl" for="note">NOTE</label>
+      <textarea id="note" rows="2" maxlength="2000" placeholder="Facultatif, visible par vous seul"></textarea>
+      <div id="collRow">
+        <label class="lbl" for="coll">COLLECTION</label>
+        <select id="coll"><option value="">Aucune</option></select>
+      </div>
+      <div class="err" id="addErr" hidden></div>
+      <div class="row">
+        <a href="#" id="openApp" class="link">Ouvrir bookmarks ↗</a>
+        <button class="btn primary" type="submit" id="submit">Ajouter ↵</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- Page impossible à enregistrer -->
+  <section id="nope" hidden>
+    <h1>Page non enregistrable</h1>
+    <p>Seules les adresses web (http ou https) peuvent être ajoutées. Ouvrez un site, puis cliquez de nouveau sur l’extension.</p>
+  </section>
+
+  <footer>
+    <span>Alt+Maj+B pour ouvrir · clic droit sur un lien pour l’ajouter</span>
+    <button type="button" id="logout" hidden>Déconnecter</button>
+  </footer>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
