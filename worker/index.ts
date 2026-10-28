@@ -5,6 +5,7 @@ import * as admin from './admin';
 import * as bm from './bookmarks';
 import * as col from './collections';
 import * as tokens from './tokens';
+import { sync } from './sync';
 import { capture } from './capture';
 import { HttpError, json, errorResponse } from './util';
 
@@ -36,6 +37,7 @@ const api = new Router<Ctx>()
   .post('/api/bookmarks/:id/recapture', bm.recapture)
   .post('/api/bookmarks/:id/restore', bm.restore)
   .get('/api/tags', bm.listTags)
+  .get('/api/sync', sync)
   .get('/api/thumbs/:key', bm.thumb)
   // Collections
   .get('/api/collections', col.list)

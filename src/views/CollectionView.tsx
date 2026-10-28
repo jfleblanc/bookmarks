@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { api, ApiError, copyText, plural, shortDate, type Bookmark, type Collection } from '../api';
-import { useToast } from '../context';
+import { api, ApiError, copyText, isNetworkError, plural, shortDate, type Bookmark, type Collection } from '../api';
+import { useAuth, useOffline, useToast } from '../context';
+import { loadSnapshot, localCollection } from '../offline';
 import { BookmarkCard, Masonry } from '../components/Cards';
 import { CollectionFormModal, PickerModal } from '../components/Dialogs';
 import { Switch } from '../components/Modal';
@@ -10,6 +11,8 @@ export default function CollectionView() {
   const { id } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
+  const { user } = useAuth();
+  const { offline } = useOffline();
   const [col, setCol] = useState<Collection | null>(null);
   const [items, setItems] = useState<Bookmark[]>([]);
   const [error, setError] = useState('');
@@ -22,8 +25,13 @@ export default function CollectionView() {
   const load = useCallback(() => {
     api.get<{ collection: Collection; items: Bookmark[] }>(`/api/collections/${id}`)
       .then(apply)
-      .catch(e => setError(e instanceof ApiError && e.status === 404 ? 'Cette collection n’existe pas ou a été supprimée.' : 'Chargement impossible.'));
-  }, [id]);
+      .catch(async e => {
+        const s = isNetworkError(e) ? await loadSnapshot(user?.id) : null;
+        const local = s && id ? localCollection(s, id) : null;
+        if (local) apply(local);
+        else setError(e instanceof ApiError && e.status === 404 ? 'Cette collection n’existe pas ou a été supprimée.' : isNetworkError(e) ? 'Vous êtes hors ligne et cette collection n’est pas dans la copie de l’appareil.' : 'Chargement impossible.');
+      });
+  }, [id, user?.id, offline]);
   useEffect(() => { load(); }, [load]);
 
   async function patch(body: Record<string, unknown>) {
@@ -91,7 +99,7 @@ export default function CollectionView() {
         <span className="mrow"><span>{plural(items.length, 'signet', 'signets')}</span><span>modifiée {shortDate(col.updatedAt)}</span></span>
       </div>
       <p className={`cdesc${col.description ? '' : ' faint'}`}>{col.description || 'Pas de description.'}</p>
-      <div className="cactions">
+      {!offline && <><div className="cactions">
         <button type="button" className="ul ink" onClick={() => setEditing(true)}>Modifier le titre et la description</button>
         <button type="button" className="ul ink" onClick={() => setPicking(true)}>Ajouter ou retirer des signets</button>
         <button type="button" className="ul danger" onClick={remove}>Supprimer la collection</button>
@@ -105,11 +113,11 @@ export default function CollectionView() {
         <p className="hint">{col.shared
           ? 'Toute personne qui a ce lien peut voir la collection, sans compte. Elle ne peut rien modifier.'
           : 'Le lien ne fonctionne pas tant que le partage est désactivé. Vous seul voyez cette collection.'}</p>
-      </div>
+      </div></>}
       <div className="cgrid-wrap">
         {items.length ? (
           <Masonry items={items} render={b => (
-            <BookmarkCard key={b.id} item={b} mode="owner" actions={<>
+            <BookmarkCard key={b.id} item={b} mode="owner" actions={offline ? undefined : <>
               <button type="button" onClick={() => move(b.id, -1)}>Monter</button>
               <button type="button" onClick={() => move(b.id, 1)}>Descendre</button>
               <button type="button" className="del" onClick={() => takeOut(b)}>Retirer</button>

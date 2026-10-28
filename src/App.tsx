@@ -1,6 +1,6 @@
 import { Navigate, NavLink, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { api } from './api';
-import { useAuth } from './context';
+import { useAuth, useOffline } from './context';
 import { Ribbon } from './components/Ribbon';
 import BookmarksView from './views/BookmarksView';
 import CollectionsView from './views/CollectionsView';
@@ -40,6 +40,7 @@ function AdminOnly({ children }: { children: JSX.Element }) {
 
 function AppLayout() {
   const { user, setUser } = useAuth();
+  const { offline, syncedAt, pendingCount } = useOffline();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -71,6 +72,13 @@ function AppLayout() {
           <button type="button" className="out" onClick={logout}>Déconnexion</button>
         </nav>
       </header>
+      {offline && (
+        <div className="offline-bar" role="status">
+          <strong>Hors ligne</strong>
+          <span>{syncedAt ? `Copie du ${new Date(syncedAt).toLocaleString('fr-CA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : 'Aucune copie enregistrée sur cet appareil'}</span>
+          {pendingCount > 0 && <span>{pendingCount} ajout{pendingCount > 1 ? 's' : ''} en attente</span>}
+        </div>
+      )}
       <Outlet />
     </div>
   );

@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { api, ApiError, plural, shortDate, type Collection } from '../api';
-import { useToast } from '../context';
+import { api, ApiError, isNetworkError, plural, shortDate, type Collection } from '../api';
+import { useAuth, useOffline, useToast } from '../context';
+import { loadSnapshot } from '../offline';
+import { generatedPreview } from '../preview';
 import { CollectionFormModal } from '../components/Dialogs';
 
 export default function CollectionsView() {
@@ -10,18 +12,24 @@ export default function CollectionsView() {
   const [creating, setCreating] = useState(false);
   const navigate = useNavigate();
   const toast = useToast();
+  const { user } = useAuth();
+  const { offline } = useOffline();
 
   useEffect(() => {
     api.get<{ collections: Collection[] }>('/api/collections')
       .then(r => setList(r.collections))
-      .catch(e => setError(e instanceof ApiError ? e.message : 'Chargement impossible.'));
-  }, []);
+      .catch(async e => {
+        const s = isNetworkError(e) ? await loadSnapshot(user?.id) : null;
+        if (s) setList(s.collections);
+        else setError(e instanceof ApiError ? e.message : 'Chargement impossible.');
+      });
+  }, [user?.id, offline]);
 
   return (
     <section>
       <div className="vhead">
         <h1>Collections</h1>
-        <button className="btn btn-primary" type="button" onClick={() => setCreating(true)}>Nouvelle collection</button>
+        {!offline && <button className="btn btn-primary" type="button" onClick={() => setCreating(true)}>Nouvelle collection</button>}
       </div>
       {error ? <div className="empty"><strong>Chargement impossible</strong>{error}</div>
         : list === null ? <p className="note pad">Chargement…</p>
@@ -32,7 +40,7 @@ export default function CollectionsView() {
             {list.map(c => (
               <Link key={c.id} to={`/collections/${c.id}`} className="coll-card">
                 <div className="cover" aria-hidden="true">
-                  {[0, 1, 2, 3].map(i => (c.covers[i] ? <img key={i} src={c.covers[i]} alt="" loading="lazy" /> : <span key={i} />))}
+                  {[0, 1, 2, 3].map(i => (c.covers[i] ? <img key={i} src={c.covers[i]} alt="" loading="lazy" onError={e => { e.currentTarget.src = generatedPreview(c.covers[i]); }} /> : <span key={i} />))}
                 </div>
                 <h2>{c.title}</h2>
                 {c.description && <p className="clamp">{c.description}</p>}

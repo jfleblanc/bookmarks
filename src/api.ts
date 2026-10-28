@@ -16,7 +16,7 @@ export interface Bookmark {
   faviconUrl: string | null;
   thumbUrl: string | null;
   thumbRatio: number;
-  status?: 'processing' | 'ready' | 'error';
+  status?: 'processing' | 'ready' | 'error' | 'pending';
   error?: string | null;
   tags: string[];
   createdAt: number;
@@ -58,6 +58,17 @@ export function setUnauthenticatedHandler(fn: () => void) {
   onUnauthenticated = fn;
 }
 
+/* État du réseau vu par l'API : faux dès qu'une requête n'aboutit pas, vrai dès qu'une réussit */
+type NetListener = (reachable: boolean) => void;
+const netListeners = new Set<NetListener>();
+let reachable = true;
+export function onReachability(fn: NetListener) { netListeners.add(fn); return () => { netListeners.delete(fn); }; }
+function setReachable(v: boolean) { if (v !== reachable) { reachable = v; netListeners.forEach(f => f(v)); } }
+
+/* Après chaque modification réussie, la copie hors ligne est remise à jour (voir offline.ts) */
+let onMutation: (() => void) | null = null;
+export function setMutationHandler(fn: () => void) { onMutation = fn; }
+
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
   let res: Response;
   try {
@@ -68,13 +79,16 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
       body: body !== undefined ? JSON.stringify(body) : undefined
     });
   } catch {
-    throw new ApiError(0, 'network', 'Connexion impossible. Vérifiez votre accès à Internet.', null);
+    setReachable(false);
+    throw new ApiError(0, 'network', 'Vous êtes hors ligne. Réessayez une fois connecté.', null);
   }
+  setReachable(true);
   const data = (res.headers.get('content-type') || '').includes('json') ? await res.json() : null;
   if (!res.ok) {
     if (res.status === 401 && onUnauthenticated) onUnauthenticated();
     throw new ApiError(res.status, data?.error || 'error', data?.message || 'Une erreur est survenue.', data);
   }
+  if (method !== 'GET' && !path.startsWith('/api/auth') && onMutation) onMutation();
   return data as T;
 }
 
@@ -86,6 +100,8 @@ export const api = {
 };
 
 /* ---------- Petits utilitaires d'affichage ---------- */
+
+export const isNetworkError = (e: unknown) => e instanceof ApiError && e.code === 'network';
 
 export const plural = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`;
 

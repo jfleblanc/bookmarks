@@ -200,6 +200,10 @@ check('annuler le nouveau lien remet l’ancien', back.status === 200 && oldBack
 const lst = await adminC.get('/api/collections');
 check('liste des collections avec compteur et couvertures', lst.data.collections[0].count === 3 && lst.data.collections[0].covers.length === 3, lst.data);
 
+const syn = await adminC.get('/api/sync');
+const listDelBefore = () => (globalThis as any).__total;
+(globalThis as any).__total = (await adminC.get('/api/bookmarks')).data.total;
+check('copie hors ligne : signets, tags et collections', syn.data.bookmarks.length === listDelBefore() && syn.data.collections[0].itemIds.length === 3 && syn.data.tags.some((t: any) => t.name === 'css'), { b: syn.data.bookmarks.length, c: syn.data.collections.map((c: any) => c.itemIds.length) });
 console.log('Suppression et annulation');
 await adminC.del(`/api/bookmarks/${ids[3]}`);
 const afterDel = await adminC.get(`/api/collections/${cid}`);

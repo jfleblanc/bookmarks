@@ -1,5 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { shortDate, type Bookmark } from '../api';
+import { useOffline } from '../context';
+import { getThumbMode } from '../offline';
+import { generatedPreview } from '../preview';
 
 const favColor = (d: string) => {
   let h = 0;
@@ -31,12 +34,19 @@ export function Thumb({ item }: { item: Pick<Bookmark, 'thumbUrl' | 'thumbRatio'
     setLoaded(!!(img.current?.complete && img.current.naturalWidth));
   }, [item.thumbUrl]);
 
+  const { offline } = useOffline();
   const box = { aspectRatio: `1 / ${ratio}` };
   if (item.status === 'processing') {
     return <div className="thumb loading" style={box}><Spinner label="Capture en cours" /></div>;
   }
-  if (!item.thumbUrl || failed) {
-    return <a className="thumb empty" href={item.url} target="_blank" rel="noopener noreferrer" tabIndex={-1} aria-hidden="true" style={box}><span>{item.domain}</span></a>;
+  // Aperçu généré : pas de capture, capture introuvable (hors ligne), ou réglage « aperçus » hors ligne
+  if (!item.thumbUrl || failed || item.status === 'pending' || (offline && getThumbMode() === 'previews')) {
+    return (
+      <a className="thumb" href={item.url} target="_blank" rel="noopener noreferrer" tabIndex={-1} aria-hidden="true" style={box}>
+        <img src={generatedPreview(item.domain, ratio)} alt="" className="in" width={400} height={Math.round(400 * ratio)} />
+        {item.status === 'pending' && <span className="thumb-flag">en attente de connexion</span>}
+      </a>
+    );
   }
   return (
     <a className={`thumb${loaded ? '' : ' loading'}`} href={item.url} target="_blank" rel="noopener noreferrer" tabIndex={-1} aria-hidden="true" style={box}>

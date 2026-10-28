@@ -101,10 +101,11 @@ async function screenshot(getBrowser: BrowserGetter, url: string): Promise<Uint8
   const page = await browser.newPage();
   try {
     await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36');
-    await page.setViewport({ width: 1280, height: 960, deviceScaleFactor: 1 });
+    // Mise en page d'un écran de 1280 × 960, rendue à 40 % : une image de 512 × 384 (environ 30 à 50 Ko)
+    await page.setViewport({ width: 1280, height: 960, deviceScaleFactor: 0.4 });
     await page.goto(url, { waitUntil: 'networkidle2', timeout: 20_000 }).catch(() => {});
     await new Promise(r => setTimeout(r, 800));
-    const shot = await page.screenshot({ type: 'jpeg', quality: 72 });
+    const shot = await page.screenshot({ type: 'jpeg', quality: 75 });
     return shot as Uint8Array;
   } finally {
     await page.close().catch(() => {});

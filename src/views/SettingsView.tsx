@@ -4,6 +4,7 @@ import { useAuth, useToast } from '../context';
 import { Switch } from '../components/Modal';
 import { Thumb } from '../components/Cards';
 import { ExtensionSettings } from '../components/ExtensionSettings';
+import { OfflineSettings } from '../components/OfflineSettings';
 
 export default function SettingsView() {
   const { user, setUser } = useAuth();
@@ -53,6 +54,7 @@ export default function SettingsView() {
             </>
           )}
         </section>
+        <OfflineSettings />
         <ExtensionSettings />
         <section>
           <h2>Compte</h2>

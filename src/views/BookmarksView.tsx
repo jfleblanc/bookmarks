@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { api, ApiError, fold, plural, type Bookmark, type Tag } from '../api';
-import { useToast } from '../context';
+import { api, ApiError, fold, isNetworkError, plural, type Bookmark, type Tag } from '../api';
+import { useAuth, useOffline, useToast } from '../context';
+import { addPending, filterLocal, getPending, loadSnapshot, pendingAsBookmark } from '../offline';
 import { BookmarkCard, Masonry, Sentinel } from '../components/Cards';
 import { TagInput } from '../components/TagInput';
 import { AddToCollectionModal, EditBookmarkModal } from '../components/Dialogs';
@@ -10,6 +11,8 @@ const PAGE = 24;
 
 export default function BookmarksView() {
   const toast = useToast();
+  const { user } = useAuth();
+  const { offline, refreshPending } = useOffline();
   const [params, setParams] = useSearchParams();
 
   // Filtres gardés dans l'adresse (?tags=css,ux&mode=or) : une vue filtrée peut être mise en favori
@@ -25,6 +28,7 @@ export default function BookmarksView() {
   const [loadError, setLoadError] = useState('');
   const loadingMore = useRef(false);
   const reqId = useRef(0);
+  const localList = useRef<Bookmark[]>([]); // hors ligne : tous les signets filtrés de la copie locale
 
   const [url, setUrl] = useState('');
   const [newTags, setNewTags] = useState<string[]>([]);
@@ -42,8 +46,10 @@ export default function BookmarksView() {
   const [flashId, setFlashId] = useState<string | null>(null);
 
   const loadTags = useCallback(() => {
-    api.get<{ tags: Tag[] }>('/api/tags').then(r => setTags(r.tags)).catch(() => {});
-  }, []);
+    api.get<{ tags: Tag[] }>('/api/tags').then(r => setTags(r.tags)).catch(async e => {
+      if (isNetworkError(e)) { const s = await loadSnapshot(user?.id); if (s) setTags(s.tags); }
+    });
+  }, [user?.id]);
 
   const query = useCallback((after?: string | null) => {
     const q = new URLSearchParams({ limit: String(PAGE) });
@@ -56,12 +62,23 @@ export default function BookmarksView() {
   const reload = useCallback(async () => {
     const id = ++reqId.current;
     setLoading(true); setLoadError('');
+    const pending = selected.size ? [] : (await getPending()).map(pendingAsBookmark);
     try {
       const r = await query();
       if (id !== reqId.current) return;
-      setItems(r.items); setTotal(r.total); setCursor(r.nextCursor);
+      setItems([...pending, ...r.items]); setTotal(r.total); setCursor(r.nextCursor);
     } catch (e) {
-      if (id === reqId.current) setLoadError(e instanceof ApiError ? e.message : 'Chargement impossible.');
+      if (id !== reqId.current) return;
+      // Hors ligne : on affiche la copie gardée sur l'appareil, filtrée localement
+      const s = isNetworkError(e) ? await loadSnapshot(user?.id) : null;
+      if (s) {
+        localList.current = filterLocal(s, selected, mode);
+        setItems([...pending, ...localList.current.slice(0, PAGE)]);
+        setTotal(localList.current.length);
+        setCursor(localList.current.length > PAGE ? `local:${PAGE}` : null);
+      } else {
+        setLoadError(isNetworkError(e) ? 'Vous êtes hors ligne et aucune copie de vos signets n’est encore enregistrée sur cet appareil.' : e instanceof ApiError ? e.message : 'Chargement impossible.');
+      }
     } finally {
       if (id === reqId.current) setLoading(false);
     }
@@ -69,9 +86,22 @@ export default function BookmarksView() {
 
   useEffect(() => { reload(); }, [reload]);
   useEffect(() => { loadTags(); }, [loadTags]);
+  // Retour du réseau : on recharge depuis le serveur
+  const wasOffline = useRef(offline);
+  useEffect(() => {
+    if (wasOffline.current && !offline) { reload(); loadTags(); }
+    wasOffline.current = offline;
+  }, [offline, reload, loadTags]);
 
   async function loadMore() {
     if (!cursor || loadingMore.current) return;
+    if (cursor.startsWith('local:')) {
+      const n = Number(cursor.slice(6));
+      const more = localList.current.slice(n, n + PAGE);
+      setItems(cur => [...cur, ...more]);
+      setCursor(n + PAGE < localList.current.length ? `local:${n + PAGE}` : null);
+      return;
+    }
     loadingMore.current = true;
     const id = reqId.current;
     try {
@@ -140,6 +170,16 @@ export default function BookmarksView() {
       flash(item.id);
       toast('Signet ajouté. Extraction en cours…');
     } catch (e) {
+      if (isNetworkError(e)) {
+        // Hors ligne : l'ajout attend sur l'appareil et partira au retour du réseau
+        if (!url.trim()) { setNotice({ text: 'Collez d’abord l’adresse d’un site.', err: true }); return; }
+        const p = await addPending({ url: url.trim(), tags: newTags, note: newNote });
+        setUrl(''); setNewTags([]); setNewNote(''); setNoteOpen(false);
+        setItems(cur => [pendingAsBookmark(p), ...cur]);
+        refreshPending();
+        toast('Hors ligne : le signet partira dès que vous serez connecté.');
+        return;
+      }
       if (e instanceof ApiError && e.code === 'duplicate') {
         setNotice({ text: `Ce site est déjà enregistré : « ${e.data.bookmark.title || e.data.bookmark.domain} ».`, dupId: e.data.bookmark.id });
       } else {
@@ -251,7 +291,7 @@ export default function BookmarksView() {
             </div>
             <div className="tools">
               <button type="button" className="filters-toggle" onClick={() => setDrawer(d => !d)}>{selected.size ? `Filtres (${selected.size})` : 'Filtres'}</button>
-              {items.length > 0 && <button type="button" onClick={() => (selecting ? stopSelecting() : setSelecting(true))}>{selecting ? 'Terminer la sélection' : 'Sélectionner'}</button>}
+              {items.length > 0 && !offline && <button type="button" onClick={() => (selecting ? stopSelecting() : setSelecting(true))}>{selecting ? 'Terminer la sélection' : 'Sélectionner'}</button>}
             </div>
           </div>
 
@@ -275,7 +315,7 @@ export default function BookmarksView() {
                 picked={picked.has(b.id)}
                 onPick={() => setPicked(p => { const n = new Set(p); n.has(b.id) ? n.delete(b.id) : n.add(b.id); return n; })}
                 flash={flashId === b.id}
-                actions={<>
+                actions={offline || b.status === 'pending' ? undefined : <>
                   <button type="button" onClick={() => setEditing(b)}>Modifier</button>
                   <button type="button" onClick={() => setCollecting([b.id])}>+ Collection</button>
                   <button type="button" className="del" onClick={() => remove(b)}>Supprimer</button>
