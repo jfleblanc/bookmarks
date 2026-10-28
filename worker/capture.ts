@@ -25,6 +25,7 @@ export function parseHtmlMeta(html: string, baseUrl: string) {
   const head = html.slice(0, 300_000);
   let title: string | null = null;
   let favicon: string | null = null;
+  let image: string | null = null;
   let iconScore = -1;
 
   for (const tag of head.match(/<meta\b[^>]*>/gi) || []) {
@@ -32,6 +33,10 @@ export function parseHtmlMeta(html: string, baseUrl: string) {
     if ((key === 'og:title' || key === 'twitter:title') && !title) {
       const c = attr(tag, 'content');
       if (c) title = decode(c);
+    }
+    if ((key === 'og:image' || key === 'og:image:secure_url' || key === 'twitter:image') && !image) {
+      const c = attr(tag, 'content');
+      if (c) { try { image = new URL(decode(c), baseUrl).href; } catch {} }
     }
   }
   if (!title) {
@@ -58,7 +63,7 @@ export function parseHtmlMeta(html: string, baseUrl: string) {
     try { favicon = new URL('/favicon.ico', baseUrl).href; } catch {}
   }
   if (title) title = title.slice(0, 300);
-  return { title: title || null, favicon };
+  return { title: title || null, favicon, image: image && /^https?:/.test(image) ? image : null };
 }
 
 async function fetchMeta(url: string) {
@@ -72,7 +77,7 @@ async function fetchMeta(url: string) {
   const type = res.headers.get('content-type') || '';
   if (!type.includes('html')) {
     res.body?.cancel();
-    return { title: null, favicon: new URL('/favicon.ico', finalUrl).href, ok: res.ok };
+    return { title: null, favicon: new URL('/favicon.ico', finalUrl).href, image: null, ok: res.ok };
   }
   // Lit au plus 1 Mo
   const reader = res.body!.getReader();
@@ -95,18 +100,52 @@ async function fetchMeta(url: string) {
 /** Ouvre un navigateur à la demande et le réutilise pour tout le lot */
 export type BrowserGetter = () => Promise<any | null>;
 
-async function screenshot(getBrowser: BrowserGetter, url: string): Promise<Uint8Array | null> {
+/** Pages de refus des protections anti-robots (Cloudflare, Akamai, DataDome…) : on ne les garde jamais comme vignette */
+const BLOCKED = /^(4\d\d|5\d\d)\b|forbidden|access denied|accès refusé|just a moment|attention required|un instant|are you a robot|êtes-vous un robot|captcha|verify you are human|vérifiez que vous êtes humain|request blocked|pardon our interruption|bot detection/i;
+
+export function looksBlocked(status: number, title: string, text: string) {
+  if (status >= 400) return true;
+  const t = (title || '').trim();
+  const body = (text || '').replace(/\s+/g, ' ').trim();
+  if (BLOCKED.test(t)) return true;
+  // page presque vide qui ne contient qu'un message de refus
+  return body.length < 600 && BLOCKED.test(body.slice(0, 300));
+}
+
+type Shot = { img: Uint8Array | null; blocked: boolean };
+
+async function screenshot(getBrowser: BrowserGetter, url: string): Promise<Shot> {
   const browser = await getBrowser();
-  if (!browser) return null;
+  if (!browser) return { img: null, blocked: false };
   const page = await browser.newPage();
   try {
     await page.setUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36');
     // Mise en page d'un écran de 1280 × 960, rendue à 40 % : une image de 512 × 384 (environ 30 à 50 Ko)
     await page.setViewport({ width: 1280, height: 960, deviceScaleFactor: 0.4 });
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: 20_000 }).catch(() => {});
+    const res = await page.goto(url, { waitUntil: 'networkidle2', timeout: 20_000 }).catch(() => null);
     await new Promise(r => setTimeout(r, 800));
-    const shot = await page.screenshot({ type: 'jpeg', quality: 75 });
-    return shot as Uint8Array;
+    let title = '', text = '';
+    try { ({ title, text } = await page.evaluate(() => ({ title: document.title, text: document.body?.innerText?.slice(0, 2000) || '' }))); } catch {}
+    if (looksBlocked(res?.status?.() ?? 0, title, text)) return { img: null, blocked: true };
+    return { img: (await page.screenshot({ type: 'jpeg', quality: 75 })) as Uint8Array, blocked: false };
+  } finally {
+    await page.close().catch(() => {});
+  }
+}
+
+/** Plan B : l'image d'aperçu que le site fournit lui-même pour les partages (og:image), recadrée au format des vignettes */
+async function previewImage(getBrowser: BrowserGetter, image: string): Promise<Uint8Array | null> {
+  if (!isPublicHost(new URL(image).hostname)) return null;
+  const browser = await getBrowser();
+  if (!browser) return null;
+  const page = await browser.newPage();
+  try {
+    await page.setViewport({ width: 1280, height: 960, deviceScaleFactor: 0.4 });
+    const src = image.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+    await page.setContent(`<!doctype html><html><body style="margin:0;background:#eee"><img id="i" src="${src}" referrerpolicy="no-referrer" style="display:block;width:1280px;height:960px;object-fit:cover"></body></html>`, { waitUntil: 'networkidle0', timeout: 15_000 }).catch(() => {});
+    const ok = await page.evaluate(() => { const i = document.getElementById('i') as HTMLImageElement; return i.complete && i.naturalWidth > 32; }).catch(() => false);
+    if (!ok) return null;
+    return (await page.screenshot({ type: 'jpeg', quality: 75 })) as Uint8Array;
   } finally {
     await page.close().catch(() => {});
   }
@@ -117,7 +156,7 @@ export async function capture(env: Env, bookmarkId: string, getBrowser: BrowserG
   if (!b || b.deleted_at) return;
   const url = b.url;
 
-  let meta: { title: string | null; favicon: string | null; ok: boolean } | null = null;
+  let meta: { title: string | null; favicon: string | null; image: string | null; ok: boolean } | null = null;
   let metaError: string | null = null;
   try {
     if (!isPublicHost(new URL(url).hostname)) throw new Error('Adresse privée');
@@ -128,7 +167,10 @@ export async function capture(env: Env, bookmarkId: string, getBrowser: BrowserG
 
   let thumbKey: string | null = null;
   try {
-    const img = await screenshot(getBrowser, url);
+    const shot = await screenshot(getBrowser, url);
+    let img = shot.img;
+    // Site qui refuse les robots : on prend son image d'aperçu officielle, sinon l'app dessine un aperçu
+    if (!img && shot.blocked && meta?.image) img = await previewImage(getBrowser, meta.image).catch(() => null);
     if (img) {
       thumbKey = `${crypto.randomUUID()}.jpg`;
       await env.THUMBS.put(thumbKey, img, { httpMetadata: { contentType: 'image/jpeg' } });

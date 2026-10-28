@@ -6,7 +6,7 @@
 import { Database } from 'bun:sqlite';
 import { readFileSync, readdirSync } from 'node:fs';
 import worker from '../worker/index';
-import { capture } from '../worker/capture';
+import { capture, looksBlocked, parseHtmlMeta } from '../worker/capture';
 
 /* ---------- Substituts des services Cloudflare ---------- */
 const sqlite = new Database(':memory:');
@@ -281,6 +281,39 @@ check('déconnexion', (await adminC.get('/api/me')).data.user === null);
 let spam = 0;
 for (let i = 0; i < 7; i++) if ((await new Client().post('/api/auth/request', { email: 'admin@exemple.ca' })).data.devLink) spam++;
 check('limite de 5 liens par 15 minutes', spam === 2, spam); // 3 déjà demandés plus haut
+
+console.log('Sites qui bloquent les robots');
+check('403 détecté', looksBlocked(403, '', ''));
+check('page « Just a moment » détectée', looksBlocked(200, 'Just a moment...', 'Checking your browser'));
+check('corps « 403 Forbidden » détecté', looksBlocked(200, '', '403 Forbidden'));
+check('article normal accepté', !looksBlocked(200, 'Sommet Canada-UE | La Presse', 'Le Canada ne sera pas membre associé. '.repeat(40)));
+check('og:image lue', parseHtmlMeta('<meta property="og:image" content="/img/a.jpg?x=1&amp;y=2">', 'https://www.lapresse.ca/x').image === 'https://www.lapresse.ca/img/a.jpg?x=1&y=2');
+{
+  const row = await env.DB.prepare(`SELECT id, thumb_key FROM bookmarks WHERE deleted_at IS NULL LIMIT 1`).first<{ id: string; thumb_key: string }>();
+  const fetchBefore = globalThis.fetch;
+  globalThis.fetch = (async () => new Response('<title>Article</title><meta property="og:image" content="https://cdn.example.com/og.jpg">', { headers: { 'content-type': 'text/html' } })) as any;
+  const used: string[] = [];
+  const blockingBrowser = (withImage: boolean) => async () => ({ newPage: async () => {
+    let mode = 'site';
+    return {
+      setUserAgent: async () => {}, setViewport: async () => {},
+      goto: async () => ({ status: () => 403 }),
+      setContent: async (html: string) => { mode = 'og'; used.push(html); },
+      evaluate: async () => (mode === 'site' ? { title: '403 Forbidden', text: '403 Forbidden' } : withImage),
+      screenshot: async () => new Uint8Array(mode === 'og' ? [255, 216, 255, 1] : [255, 216, 255, 9]),
+      close: async () => {}
+    };
+  } });
+  await capture(env, row!.id, blockingBrowser(true));
+  const after = await env.DB.prepare(`SELECT thumb_key, status FROM bookmarks WHERE id = ?`).bind(row!.id).first<{ thumb_key: string; status: string }>();
+  const obj = await env.THUMBS.get(after!.thumb_key);
+  const bytes = new Uint8Array(obj!.body as any);
+  check('site bloqué : image og:image utilisée, pas la page de refus', bytes[3] === 1 && used[0]?.includes('cdn.example.com/og.jpg'), bytes);
+  await capture(env, row!.id, blockingBrowser(false));
+  const after2 = await env.DB.prepare(`SELECT thumb_key, status FROM bookmarks WHERE id = ?`).bind(row!.id).first<{ thumb_key: string; status: string }>();
+  check('site bloqué sans image : ancienne vignette gardée, signet prêt', after2!.thumb_key === after!.thumb_key && after2!.status === 'ready', after2);
+  globalThis.fetch = fetchBefore;
+}
 
 globalThis.fetch = realFetch;
 console.log(`\n${passed} réussis, ${failed} échoués`);
