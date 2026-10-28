@@ -1,0 +1,6 @@
+# Copiez ce fichier en .dev.vars pour le développement local (il n'est jamais envoyé sur GitHub).
+# En mode développement, les liens de connexion s'affichent à l'écran au lieu d'être envoyés par courriel.
+DEV_MODE=1
+APP_URL=http://localhost:5173
+ADMIN_EMAIL=vous@exemple.ca
+# RESEND_API_KEY=re_xxx

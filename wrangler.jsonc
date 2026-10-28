@@ -1,0 +1,42 @@
+// Configuration Cloudflare : un seul Worker sert l'interface React (fichiers statiques de ./dist)
+// et l'API (/api/*). Remplacez les valeurs marquées À REMPLIR avant le premier déploiement (voir README).
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bookmarks",
+  "main": "worker/index.ts",
+  "compatibility_date": "2025-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "bookmarks",
+      "database_id": "À REMPLIR",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  "r2_buckets": [{ "binding": "THUMBS", "bucket_name": "bookmarks-thumbs" }],
+
+  "queues": {
+    "producers": [{ "binding": "JOBS", "queue": "bookmarks-jobs" }],
+    "consumers": [{ "queue": "bookmarks-jobs", "max_batch_size": 3, "max_batch_timeout": 2, "max_retries": 2 }]
+  },
+
+  "browser": { "binding": "BROWSER" },
+
+  "vars": {
+    "APP_URL": "https://À REMPLIR",
+    "ADMIN_EMAIL": "À REMPLIR",
+    "MAIL_FROM": "bookmarks <À REMPLIR>"
+  },
+
+  "observability": { "enabled": true }
+}
