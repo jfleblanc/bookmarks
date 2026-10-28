@@ -1,5 +1,5 @@
 // Configuration Cloudflare : un seul Worker sert l'interface React (fichiers statiques de ./dist)
-// et l'API (/api/*). Remplacez les valeurs marquées À REMPLIR avant le premier déploiement (voir README).
+// et l'API (/api/*). Voir le README pour la mise en place.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "bookmarks",
@@ -18,7 +18,7 @@
     {
       "binding": "DB",
       "database_name": "bookmarks",
-      "database_id": "À REMPLIR",
+      "database_id": "0cded9ae-7320-4f2d-9139-bdbdceed1813",
       "migrations_dir": "migrations"
     }
   ],
@@ -33,9 +33,9 @@
   "browser": { "binding": "BROWSER" },
 
   "vars": {
-    "APP_URL": "https://À REMPLIR",
-    "ADMIN_EMAIL": "À REMPLIR",
-    "MAIL_FROM": "bookmarks <À REMPLIR>"
+    "APP_URL": "https://bookmarks.jfleblanc.com",
+    "ADMIN_EMAIL": "jf@jfleblanc.com",
+    "MAIL_FROM": "bookmarks <jf@jfleblanc.com>"
   },
 
   "observability": { "enabled": true }
