@@ -2,6 +2,7 @@ import { Navigate, NavLink, Outlet, Route, Routes, useLocation, useNavigate } fr
 import { api } from './api';
 import { useAuth, useOffline } from './context';
 import { Ribbon } from './components/Ribbon';
+import { UserMenu } from './components/UserMenu';
 import BookmarksView from './views/BookmarksView';
 import CollectionsView from './views/CollectionsView';
 import CollectionView from './views/CollectionView';
@@ -66,11 +67,8 @@ function AppLayout() {
         <nav className="nav" aria-label="Navigation principale">
           <NavLink to="/" end>Signets</NavLink>
           <NavLink to="/collections">Collections</NavLink>
-          {user.role === 'admin' && <NavLink to="/admin">Admin</NavLink>}
-          <NavLink to="/reglages">Réglages</NavLink>
-          <span className="who">{user.email}</span>
-          <button type="button" className="out" onClick={logout}>Déconnexion</button>
         </nav>
+        <UserMenu user={user} onLogout={logout} />
       </header>
       {offline && (
         <div className="offline-bar" role="status">
