@@ -194,7 +194,8 @@ export async function publicView(ctx: Ctx, p: Record<string, string>) {
      WHERE c.share_code = ? AND c.deleted_at IS NULL AND c.shared = 1 AND u.active = 1`
   ).bind(p.code).first<CollectionRow>();
   if (!c) throw new HttpError(404, 'not_shared', 'Ce lien n’est plus actif.');
-  const items = (await itemsOf(ctx, c.id)).map(({ error, status, ...rest }) => rest);
+  // Les notes sont personnelles : elles ne sont jamais montrées sur la page publique
+  const items = (await itemsOf(ctx, c.id)).map(({ error, status, note, ...rest }) => rest);
   return json({
     collection: { title: c.title, description: c.description, updatedAt: c.updated_at, count: items.length },
     items

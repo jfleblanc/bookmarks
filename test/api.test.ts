@@ -4,14 +4,16 @@
   Lancer : bun test/api.test.ts
 */
 import { Database } from 'bun:sqlite';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import worker from '../worker/index';
 import { capture } from '../worker/capture';
 
 /* ---------- Substituts des services Cloudflare ---------- */
 const sqlite = new Database(':memory:');
 sqlite.exec('PRAGMA foreign_keys = ON;');
-sqlite.exec(readFileSync(new URL('../migrations/0001_init.sql', import.meta.url), 'utf8'));
+for (const f of readdirSync(new URL('../migrations/', import.meta.url)).filter(f => f.endsWith('.sql')).sort()) {
+  sqlite.exec(readFileSync(new URL(`../migrations/${f}`, import.meta.url), 'utf8'));
+}
 
 const norm = (a: unknown[]) => a.map(v => (v === undefined ? null : typeof v === 'boolean' ? (v ? 1 : 0) : v));
 class Stmt {
@@ -140,6 +142,12 @@ check('compteurs de tags', tags.data.tags.find((t: any) => t.name === 'css')?.co
 
 const upd = await adminC.patch(`/api/bookmarks/${ids[1]}`, { title: 'CodePen perso', tags: ['js'] });
 check('modification du titre et des tags', upd.data.item.title === 'CodePen perso' && upd.data.item.tags.join() === 'js', upd.data.item);
+const noted = await adminC.post('/api/bookmarks', { url: 'notes.example.com', note: '  Pour le cours 3\r\n\n\n\nvoir la section grille  ' });
+check('note enregistrée à la création (nettoyée)', noted.data.item.note === 'Pour le cours 3\n\nvoir la section grille', noted.data.item.note);
+const noteUpd = await adminC.patch(`/api/bookmarks/${noted.data.item.id}`, { note: 'Modifiée' });
+check('note modifiée', noteUpd.data.item.note === 'Modifiée');
+await runQueue();
+await adminC.del(`/api/bookmarks/${noted.data.item.id}`);
 const tags2 = await adminC.get('/api/tags');
 check('tag orphelin retiré de l’index', !tags2.data.tags.some((t: any) => t.name === 'outils' && t.count === 0));
 const moved = await adminC.patch(`/api/bookmarks/${ids[1]}`, { url: 'awwwards.com' });
@@ -162,7 +170,7 @@ check('collection privée : lien inactif', priv1.status === 404);
 await adminC.patch(`/api/collections/${cid}`, { shared: true });
 const pub = await new Client().get(`/api/public/c/${code}`);
 check('collection partagée visible sans compte', pub.status === 200 && pub.data.items.length === 3 && pub.data.collection.title === 'Ressources CSS', pub.data);
-check('la page publique ne révèle pas les champs internes', !('status' in pub.data.items[0]) && !('user_id' in pub.data.items[0]));
+check('la page publique ne révèle pas les champs internes ni les notes', !('status' in pub.data.items[0]) && !('user_id' in pub.data.items[0]) && !('note' in pub.data.items[0]));
 const regen = await adminC.post(`/api/collections/${cid}/regenerate`);
 const oldGone = await new Client().get(`/api/public/c/${code}`);
 check('nouveau lien : l’ancien ne fonctionne plus', oldGone.status === 404 && regen.data.collection.shareUrl.split('/c/')[1] !== code);

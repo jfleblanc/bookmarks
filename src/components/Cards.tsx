@@ -15,17 +15,34 @@ function Favicon({ url, domain }: { url: string | null; domain: string }) {
   return <span className="fav" style={{ background: favColor(domain) }} aria-hidden="true">{domain.charAt(0).toUpperCase()}</span>;
 }
 
+/** Indicateur de chargement : un anneau qui tourne */
+export function Spinner({ label }: { label: string }) {
+  return <span className="spinner" role="status" aria-label={label} />;
+}
+
 export function Thumb({ item }: { item: Pick<Bookmark, 'thumbUrl' | 'thumbRatio' | 'status' | 'domain' | 'url'> }) {
   const ratio = item.thumbRatio || 0.75;
+  const [loaded, setLoaded] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const img = useRef<HTMLImageElement>(null);
+  // Nouvelle image : on repart de l'indicateur, sauf si elle est déjà en cache (complète avant que React n'écoute « load »)
+  useEffect(() => {
+    setFailed(false);
+    setLoaded(!!(img.current?.complete && img.current.naturalWidth));
+  }, [item.thumbUrl]);
+
+  const box = { aspectRatio: `1 / ${ratio}` };
   if (item.status === 'processing') {
-    return <div className="thumb loading" style={{ aspectRatio: `1 / ${ratio}` }}><span>capture en cours…</span></div>;
+    return <div className="thumb loading" style={box}><Spinner label="Capture en cours" /></div>;
   }
-  if (!item.thumbUrl) {
-    return <a className="thumb empty" href={item.url} target="_blank" rel="noopener noreferrer" tabIndex={-1} aria-hidden="true" style={{ aspectRatio: `1 / ${ratio}` }}><span>{item.domain}</span></a>;
+  if (!item.thumbUrl || failed) {
+    return <a className="thumb empty" href={item.url} target="_blank" rel="noopener noreferrer" tabIndex={-1} aria-hidden="true" style={box}><span>{item.domain}</span></a>;
   }
   return (
-    <a className="thumb" href={item.url} target="_blank" rel="noopener noreferrer" tabIndex={-1} aria-hidden="true">
-      <img src={item.thumbUrl} alt="" loading="lazy" width={400} height={Math.round(400 * ratio)} />
+    <a className={`thumb${loaded ? '' : ' loading'}`} href={item.url} target="_blank" rel="noopener noreferrer" tabIndex={-1} aria-hidden="true" style={box}>
+      {!loaded && <Spinner label="Chargement de la vignette" />}
+      <img ref={img} src={item.thumbUrl} alt="" loading="lazy" width={400} height={Math.round(400 * ratio)}
+        className={loaded ? 'in' : ''} onLoad={() => setLoaded(true)} onError={() => setFailed(true)} />
     </a>
   );
 }
@@ -68,6 +85,7 @@ export function BookmarkCard({ item, mode, activeTags, onTag, selecting, picked,
           : <a href={item.url} target="_blank" rel="noopener noreferrer">{item.title || item.domain}</a>}
       </h3>
       {item.status === 'error' && <p className="card-err">{item.error || 'Capture impossible.'}</p>}
+      {item.note && mode !== 'public' && <p className="card-note">{item.note}</p>}
       {item.tags.length > 0 && (
         <div className="tags">
           {item.tags.map(t =>

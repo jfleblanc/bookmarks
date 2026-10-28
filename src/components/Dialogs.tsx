@@ -13,6 +13,7 @@ export function EditBookmarkModal({ item, knownTags, onClose, onSaved }: {
   const [url, setUrl] = useState(item.url);
   const [title, setTitle] = useState(item.title || '');
   const [tags, setTags] = useState(item.tags);
+  const [note, setNote] = useState(item.note || '');
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const toast = useToast();
@@ -20,7 +21,7 @@ export function EditBookmarkModal({ item, knownTags, onClose, onSaved }: {
   async function save() {
     setBusy(true); setErr('');
     try {
-      const { item: b } = await api.patch<{ item: Bookmark }>(`/api/bookmarks/${item.id}`, { url, title, tags });
+      const { item: b } = await api.patch<{ item: Bookmark }>(`/api/bookmarks/${item.id}`, { url, title, tags, note });
       onSaved(b); onClose(); toast('Modifications enregistrées.');
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : 'Enregistrement impossible.');
@@ -38,6 +39,7 @@ export function EditBookmarkModal({ item, knownTags, onClose, onSaved }: {
       <label><span className="lbl">URL</span><input className="plain mono" value={url} onChange={e => setUrl(e.target.value)} autoComplete="off" /></label>
       <label><span className="lbl">TITRE</span><input className="plain" value={title} placeholder={item.domain} onChange={e => setTitle(e.target.value)} autoComplete="off" data-autofocus /></label>
       <div><span className="lbl">TAGS</span><div className="tagbox"><TagInput id="editTags" value={tags} onChange={setTags} known={knownTags} /></div></div>
+      <label><span className="lbl">NOTE</span><textarea className="plain" value={note} onChange={e => setNote(e.target.value)} placeholder="Pourquoi ce site, ce qu’il faut y regarder… (visible par vous seul)" maxLength={2000} /></label>
       {err && <div className="err">{err}</div>}
       <div className="row spread">
         <button type="button" className="ul ink" onClick={recapture}>Refaire la capture</button>

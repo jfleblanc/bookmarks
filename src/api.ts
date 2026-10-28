@@ -12,6 +12,7 @@ export interface Bookmark {
   url: string;
   domain: string;
   title: string | null;
+  note?: string;
   faviconUrl: string | null;
   thumbUrl: string | null;
   thumbRatio: number;

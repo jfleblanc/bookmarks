@@ -56,6 +56,12 @@ a { color: inherit; }
 .url-input { flex: 2 1 260px; min-width: 0; height: 44px; border: 0; background: transparent; font: 500 20px var(--f-body); outline: none; }
 .url-input::placeholder, .ti input::placeholder, .plain::placeholder { color: var(--faint); }
 .tagfield { flex: 1 1 220px; min-width: 0; }
+.note-toggle { font: 12px var(--f-mono); white-space: nowrap; }
+.add-note { flex-basis: 100%; display: flex; align-items: flex-start; gap: 10px 16px; padding-top: 10px; border-top: 1px solid var(--line); }
+.add-note .lbl { padding-top: 6px; }
+.add-note textarea { flex: 1; min-width: 0; border: 0; background: transparent; font: 16px/1.45 var(--f-body); resize: vertical; outline: none; padding: 4px 0; }
+.add-note textarea::placeholder { color: var(--faint); }
+.add-note .clear { padding-top: 6px; }
 .btn { display: inline-flex; align-items: center; justify-content: center; height: 44px; padding: 0 18px; border: 1px solid var(--ink); background: transparent; font-weight: 600; white-space: nowrap; text-decoration: none; }
 .btn-primary { background: var(--ink); color: var(--bg); }
 .btn-primary:hover { opacity: .88; }
@@ -119,9 +125,17 @@ a { color: inherit; }
 .card.selecting { cursor: pointer; }
 .card.picked { outline: 3px solid var(--accent); }
 .thumb { display: block; border-radius: 3px; overflow: hidden; background: var(--soft); box-shadow: inset 0 0 0 1px var(--line); position: relative; max-width: 100%; }
-.thumb img { display: block; width: 100%; height: auto; }
-.thumb.loading { border: 1px dashed var(--faint); box-shadow: none; display: grid; place-items: center; }
-.thumb.loading span, .thumb.empty span { font: 11px var(--f-mono); color: var(--muted); }
+.thumb img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; opacity: 0; transition: opacity .3s ease; }
+.thumb img.in { opacity: 1; }
+.thumb.loading { display: grid; place-items: center; }
+.thumb.loading > img { position: absolute; inset: 0; }
+.thumb.empty span { font: 11px var(--f-mono); color: var(--muted); }
+/* Indicateur de chargement : anneau fin qui tourne sans fin */
+.spinner { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--ink); animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: pulse 1.6s ease-in-out infinite !important; border-color: var(--faint); } }
+@keyframes pulse { 50% { opacity: .35; } }
+.card-note { margin: 0; font-size: 14px; color: var(--muted); white-space: pre-line; overflow-wrap: anywhere; border-left: 2px solid var(--line); padding-left: 10px; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; overflow: hidden; }
 .thumb.empty { display: grid; place-items: center; text-decoration: none; }
 .pick { position: absolute; top: 8px; left: 8px; z-index: 2; width: 28px; height: 28px; background: var(--bg); border: 2px solid var(--ink); display: grid; place-items: center; }
 .pick input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }

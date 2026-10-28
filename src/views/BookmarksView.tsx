@@ -28,6 +28,8 @@ export default function BookmarksView() {
 
   const [url, setUrl] = useState('');
   const [newTags, setNewTags] = useState<string[]>([]);
+  const [newNote, setNewNote] = useState('');
+  const [noteOpen, setNoteOpen] = useState(false);
   const [notice, setNotice] = useState<{ text: string; err?: boolean; dupId?: string } | null>(null);
   const [adding, setAdding] = useState(false);
 
@@ -129,8 +131,8 @@ export default function BookmarksView() {
     if (adding) return;
     setAdding(true); setNotice(null);
     try {
-      const { item } = await api.post<{ item: Bookmark }>('/api/bookmarks', { url, tags: newTags });
-      setUrl(''); setNewTags([]);
+      const { item } = await api.post<{ item: Bookmark }>('/api/bookmarks', { url, tags: newTags, note: newNote });
+      setUrl(''); setNewTags([]); setNewNote(''); setNoteOpen(false);
       if (selected.size) setFilter(new Set());
       setItems(cur => [item, ...cur]);
       setTotal(t => t + 1);
@@ -180,7 +182,18 @@ export default function BookmarksView() {
           value={url} onChange={e => { setUrl(e.target.value); if (notice) setNotice(null); }} />
         <span className="lbl" aria-hidden="true">TAGS</span>
         <div className="tagfield"><TagInput id="addTags" value={newTags} onChange={setNewTags} known={tags} onSubmitEmpty={add} /></div>
+        {!noteOpen && <button type="button" className="ul ink note-toggle" onClick={() => setNoteOpen(true)}>+ Note</button>}
         <button className="btn btn-primary" type="submit" disabled={adding}>Ajouter ↵</button>
+        {noteOpen && (
+          <div className="add-note">
+            <label className="lbl" htmlFor="newNote">NOTE</label>
+            <textarea id="newNote" value={newNote} autoFocus maxLength={2000} rows={2}
+              placeholder="Pourquoi ce site, ce qu’il faut y regarder… (visible par vous seul)"
+              onChange={e => setNewNote(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); add(); } }} />
+            <button type="button" className="clear" onClick={() => { setNoteOpen(false); setNewNote(''); }}>Retirer</button>
+          </div>
+        )}
         {notice && (
           <div className={`notice${notice.err ? ' err' : ''}`}>
             <span>{notice.text}</span>

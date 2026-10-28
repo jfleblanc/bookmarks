@@ -11,6 +11,7 @@ export interface BookmarkRow {
   norm_url: string;
   domain: string;
   title: string | null;
+  note: string;
   favicon_url: string | null;
   thumb_key: string | null;
   thumb_ratio: number;
@@ -27,6 +28,7 @@ export function serialize(b: BookmarkRow, tags: string[]) {
     url: b.url,
     domain: b.domain,
     title: b.title,
+    note: b.note || '',
     faviconUrl: b.favicon_url,
     thumbUrl: b.thumb_key ? `/api/thumbs/${b.thumb_key}` : null,
     thumbRatio: b.thumb_ratio,
@@ -38,6 +40,11 @@ export function serialize(b: BookmarkRow, tags: string[]) {
   };
 }
 export type Bookmark = ReturnType<typeof serialize>;
+
+/** Note personnelle : texte libre, sauts de ligne conservés, 2000 caractères au plus */
+function cleanNote(v: unknown): string {
+  return String(v ?? '').replace(/\r\n?/g, '\n').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').replace(/\n{3,}/g, '\n\n').trim().slice(0, 2000);
+}
 
 /** Charge les tags d'une liste de signets (une seule requête) */
 export async function tagsFor(env: Env, ids: string[]): Promise<Map<string, string[]>> {
@@ -163,7 +170,7 @@ export async function getOne(ctx: Ctx, p: Record<string, string>) {
 
 export async function create(ctx: Ctx) {
   const user = requireUser(ctx);
-  const body = await readJson<{ url?: string; tags?: string[] }>(ctx.req);
+  const body = await readJson<{ url?: string; tags?: string[]; note?: string }>(ctx.req);
   const u = parseUrl(body.url);
   if (!isPublicHost(u.hostname)) throw new HttpError(400, 'bad_url', 'Cette adresse pointe vers un réseau privé.');
   const norm = normalizeUrl(u);
@@ -179,8 +186,8 @@ export async function create(ctx: Ctx) {
   const tags = normalizeTags(body.tags);
   await ctx.env.DB.batch([
     ctx.env.DB.prepare(
-      `INSERT INTO bookmarks (id, user_id, url, norm_url, domain, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'processing', ?, ?)`
-    ).bind(id, user.id, u.href, norm, domainOf(u), t, t),
+      `INSERT INTO bookmarks (id, user_id, url, norm_url, domain, note, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 'processing', ?, ?)`
+    ).bind(id, user.id, u.href, norm, domainOf(u), cleanNote(body.note), t, t),
     ...setTagsStatements(ctx.env, user.id, id, tags)
   ]);
   await ctx.env.JOBS.send({ bookmarkId: id });
@@ -191,9 +198,10 @@ export async function create(ctx: Ctx) {
 export async function update(ctx: Ctx, p: Record<string, string>) {
   const b = await getOwned(ctx, p.id);
   if (b.deleted_at) throw new HttpError(404, 'not_found', 'Signet introuvable.');
-  const body = await readJson<{ url?: string; title?: string; tags?: string[] }>(ctx.req);
+  const body = await readJson<{ url?: string; title?: string; tags?: string[]; note?: string }>(ctx.req);
   const stmts = [];
   let recapture = false;
+  if (body.note !== undefined) stmts.push(ctx.env.DB.prepare(`UPDATE bookmarks SET note = ? WHERE id = ?`).bind(cleanNote(body.note), b.id));
 
   if (body.url !== undefined) {
     const u = parseUrl(body.url);
