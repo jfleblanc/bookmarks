@@ -44,12 +44,13 @@ export function ExtensionSettings() {
   return (
     <section>
       <h2>Extension de navigateur</h2>
-      <p className="note">Ajoutez la page que vous visitez en un clic, avec ses tags et une note, depuis Chrome ou Brave sur ordinateur. Un clic droit sur un lien permet aussi de l’ajouter directement.</p>
+      <p className="note">Ajoutez la page que vous visitez en un clic, avec ses tags et une note, depuis Chrome ou Brave sur ordinateur. Un clic droit sur un lien permet aussi de l’ajouter directement. La vignette est prise par votre navigateur : elle fonctionne même sur les sites qui bloquent les robots.</p>
       <ol className="steps">
         <li><a className="ul ink" href="/bookmarks-extension.zip" download>Télécharger l’extension</a>, puis décompressez le fichier.</li>
         <li>Ouvrez <code>brave://extensions</code> (ou <code>chrome://extensions</code>), activez le <strong>Mode développeur</strong>, puis cliquez <strong>Charger l’extension non empaquetée</strong> et choisissez le dossier décompressé.</li>
         <li>Créez un jeton ci-dessous et collez-le dans l’extension la première fois que vous l’ouvrez.</li>
       </ol>
+      <p className="note">Mise à jour (version 1.1) : remplacez le contenu du dossier par la nouvelle version, puis cliquez sur la flèche de rechargement de l’extension dans <code>brave://extensions</code>. Brave demandera peut-être d’accepter la nouvelle permission.</p>
 
       <form className="inv" noValidate onSubmit={e => { e.preventDefault(); create(); }}>
         <label className="lbl" htmlFor="tokName">NAVIGATEUR</label>

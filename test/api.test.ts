@@ -71,7 +71,7 @@ class Client {
   del = (p: string) => this.call('DELETE', p);
 }
 async function runQueue() {
-  while (queue.length) { const j = queue.shift()!; await capture(env, j.bookmarkId, fakeBrowser); }
+  while (queue.length) { const j = queue.shift()!; await capture(env, j.bookmarkId, fakeBrowser, { metaOnly: j.metaOnly }); }
 }
 
 /* ---------- Mini-framework ---------- */
@@ -271,6 +271,24 @@ const toks = await adminC.get('/api/tokens');
 check('liste des jetons sans le secret', toks.data.tokens.length === 1 && !('token_hash' in toks.data.tokens[0]) && toks.data.tokens[0].last_used_at);
 await adminC.del(`/api/tokens/${tok.data.token.id}`);
 check('jeton révoqué : refusé', (await ext.get('/api/me')).status === 401);
+
+console.log('Vignette envoyée par l’extension');
+{
+  const jpeg = new Uint8Array(300); jpeg.set([0xff, 0xd8, 0xff, 0xe0]); jpeg[10] = 7;
+  const thumb = 'data:image/jpeg;base64,' + btoa(String.fromCharCode(...jpeg));
+  const r = await adminC.post('/api/bookmarks', { url: 'https://www.lapresse.ca/article-test', tags: ['news'], thumb });
+  check('ajout avec vignette : vignette disponible tout de suite', r.status === 201 && r.data.item.thumbUrl, r.data);
+  check('ajout avec vignette : le serveur ne prend pas de capture', queue.at(-1)?.metaOnly === true, queue.at(-1));
+  await runQueue();
+  const row = await env.DB.prepare(`SELECT thumb_key, title, status FROM bookmarks WHERE id = ?`).bind(r.data.item.id).first<any>();
+  check('ajout avec vignette : titre extrait, vignette du navigateur gardée', row.status === 'ready' && row.title && (r2.get(row.thumb_key) as Uint8Array)[10] === 7, row);
+  const bad = await adminC.post('/api/bookmarks', { url: 'https://exemple.ca/png', thumb: 'data:image/png;base64,iVBORw0KGgo=' });
+  check('vignette invalide refusée', bad.status === 400 && bad.data.error === 'bad_thumb', bad.data);
+  jpeg[10] = 8;
+  const up = await adminC.patch(`/api/bookmarks/${r.data.item.id}`, { thumb: 'data:image/jpeg;base64,' + btoa(String.fromCharCode(...jpeg)) });
+  const row2 = await env.DB.prepare(`SELECT thumb_key FROM bookmarks WHERE id = ?`).bind(r.data.item.id).first<any>();
+  check('modifier : vignette remplacée, ancienne effacée', up.status === 200 && (r2.get(row2.thumb_key) as Uint8Array)[10] === 8 && !r2.has(row.thumb_key));
+}
 
 console.log('Préférences et déconnexion');
 const prefs = await adminC.patch('/api/me/prefs', { bw: true, hoverColor: false, autre: 'ignoré' });

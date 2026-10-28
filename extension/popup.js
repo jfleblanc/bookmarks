@@ -1,4 +1,5 @@
 import { SERVER, call, getAuth, setAuth, clearAuth, isSavable, ApiError } from './api.js';
+import { captureTab } from './capture.js';
 
 const $ = id => document.getElementById(id);
 const show = id => ['setup', 'main', 'nope'].forEach(s => ($(s).hidden = s !== id));
@@ -77,6 +78,8 @@ async function showMain() {
       $('note').value = existing.note || '';
       setState('Déjà dans vos signets. Vous pouvez compléter ses tags et sa note.');
       $('submit').textContent = 'Enregistrer';
+      $('shot').options[0].hidden = false;
+      $('shot').value = 'keep';
       drawChips();
     }
   } catch (err) {
@@ -99,24 +102,28 @@ $('addForm').addEventListener('submit', async e => {
   $('submit').disabled = true;
   const note = $('note').value;
   const collectionId = $('coll').value;
+  const shotMode = $('shot').value;
   try {
+    // Capture faite par votre navigateur ; si elle échoue, le serveur la fera comme avant
+    const thumb = shotMode === 'keep' ? null : await captureTab(tab, shotMode);
+    const extra = thumb ? { thumb } : {};
     let id;
     if (existing) {
-      await call('PATCH', `/api/bookmarks/${existing.id}`, { tags, note });
+      await call('PATCH', `/api/bookmarks/${existing.id}`, { tags, note, ...extra });
       id = existing.id;
     } else {
       try {
-        const r = await call('POST', '/api/bookmarks', { url: tab.url, tags, note });
+        const r = await call('POST', '/api/bookmarks', { url: tab.url, tags, note, ...extra });
         id = r.item.id;
       } catch (err) {
         if (err.code !== 'duplicate') throw err;
         id = err.data.bookmark.id; // ajouté entre-temps ailleurs : on complète la fiche
-        await call('PATCH', `/api/bookmarks/${id}`, { tags, note });
+        await call('PATCH', `/api/bookmarks/${id}`, { tags, note, ...extra });
       }
     }
     if (collectionId) await call('POST', `/api/collections/${collectionId}/items`, { bookmarkIds: [id] });
     $('addForm').hidden = true;
-    setState(existing ? 'Signet mis à jour ✓' : 'Ajouté à bookmarks ✓ La capture se fait en arrière-plan.', true);
+    setState(existing ? 'Signet mis à jour ✓' : (thumb ? 'Ajouté à bookmarks ✓' : 'Ajouté à bookmarks ✓ La capture se fait en arrière-plan.'), true);
     setTimeout(() => window.close(), 1600);
   } catch (err) {
     showError(err instanceof ApiError && err.status === 401 ? 'Ce jeton ne fonctionne plus. Déconnectez puis reconnectez l’extension.' : err.message);

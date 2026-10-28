@@ -184,9 +184,22 @@ export async function getOne(ctx: Ctx, p: Record<string, string>) {
   return json({ item });
 }
 
+/** Vignette envoyée par l'extension (capture faite dans le navigateur de la personne) : JPEG seulement, 400 Ko au plus */
+async function storeClientThumb(env: Env, data: unknown): Promise<string | null> {
+  if (data === undefined || data === null || data === '') return null;
+  const m = typeof data === 'string' ? data.match(/^data:image\/jpeg;base64,([A-Za-z0-9+/=]+)$/) : null;
+  if (!m || m[1].length > 560_000) throw new HttpError(400, 'bad_thumb', 'La vignette envoyée est invalide.');
+  let bytes: Uint8Array;
+  try { bytes = Uint8Array.from(atob(m[1]), c => c.charCodeAt(0)); } catch { throw new HttpError(400, 'bad_thumb', 'La vignette envoyée est invalide.'); }
+  if (bytes.length < 200 || bytes[0] !== 0xff || bytes[1] !== 0xd8 || bytes[2] !== 0xff) throw new HttpError(400, 'bad_thumb', 'La vignette envoyée est invalide.');
+  const key = `${crypto.randomUUID()}.jpg`;
+  await env.THUMBS.put(key, bytes, { httpMetadata: { contentType: 'image/jpeg' } });
+  return key;
+}
+
 export async function create(ctx: Ctx) {
   const user = requireUser(ctx);
-  const body = await readJson<{ url?: string; tags?: string[]; note?: string }>(ctx.req);
+  const body = await readJson<{ url?: string; tags?: string[]; note?: string; thumb?: string }>(ctx.req);
   const u = parseUrl(body.url);
   if (!isPublicHost(u.hostname)) throw new HttpError(400, 'bad_url', 'Cette adresse pointe vers un réseau privé.');
   const norm = normalizeUrl(u);
@@ -200,13 +213,15 @@ export async function create(ctx: Ctx) {
   const id = newId();
   const t = now();
   const tags = normalizeTags(body.tags);
+  const thumbKey = await storeClientThumb(ctx.env, body.thumb);
   await ctx.env.DB.batch([
     ctx.env.DB.prepare(
-      `INSERT INTO bookmarks (id, user_id, url, norm_url, domain, note, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, 'processing', ?, ?)`
-    ).bind(id, user.id, u.href, norm, domainOf(u), cleanNote(body.note), t, t),
+      `INSERT INTO bookmarks (id, user_id, url, norm_url, domain, note, thumb_key, thumb_ratio, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0.75, 'processing', ?, ?)`
+    ).bind(id, user.id, u.href, norm, domainOf(u), cleanNote(body.note), thumbKey, t, t),
     ...setTagsStatements(ctx.env, user.id, id, tags)
   ]);
-  await ctx.env.JOBS.send({ bookmarkId: id });
+  // Avec une vignette fournie, le serveur ne va chercher que le titre et le favicon (pas de navigateur)
+  await ctx.env.JOBS.send(thumbKey ? { bookmarkId: id, metaOnly: true } : { bookmarkId: id });
   const row = await ctx.env.DB.prepare(`SELECT * FROM bookmarks WHERE id = ?`).bind(id).first<BookmarkRow>();
   return json({ item: serialize(row!, tags) }, 201);
 }
@@ -214,9 +229,11 @@ export async function create(ctx: Ctx) {
 export async function update(ctx: Ctx, p: Record<string, string>) {
   const b = await getOwned(ctx, p.id);
   if (b.deleted_at) throw new HttpError(404, 'not_found', 'Signet introuvable.');
-  const body = await readJson<{ url?: string; title?: string; tags?: string[]; note?: string }>(ctx.req);
+  const body = await readJson<{ url?: string; title?: string; tags?: string[]; note?: string; thumb?: string }>(ctx.req);
   const stmts = [];
   let recapture = false;
+  const thumbKey = await storeClientThumb(ctx.env, body.thumb);
+  if (thumbKey) stmts.push(ctx.env.DB.prepare(`UPDATE bookmarks SET thumb_key = ?, thumb_ratio = 0.75 WHERE id = ?`).bind(thumbKey, b.id));
   if (body.note !== undefined) stmts.push(ctx.env.DB.prepare(`UPDATE bookmarks SET note = ? WHERE id = ?`).bind(cleanNote(body.note), b.id));
 
   if (body.url !== undefined) {
@@ -243,7 +260,8 @@ export async function update(ctx: Ctx, p: Record<string, string>) {
   if (body.tags !== undefined) stmts.push(...setTagsStatements(ctx.env, b.user_id, b.id, normalizeTags(body.tags)));
   stmts.push(ctx.env.DB.prepare(`UPDATE bookmarks SET updated_at = ? WHERE id = ?`).bind(now(), b.id));
   await ctx.env.DB.batch(stmts);
-  if (recapture) await ctx.env.JOBS.send({ bookmarkId: b.id });
+  if (thumbKey && b.thumb_key) await ctx.env.THUMBS.delete(b.thumb_key).catch(() => {});
+  if (recapture) await ctx.env.JOBS.send(thumbKey ? { bookmarkId: b.id, metaOnly: true } : { bookmarkId: b.id });
   return getOne(ctx, p);
 }
 

@@ -151,7 +151,7 @@ async function previewImage(getBrowser: BrowserGetter, image: string): Promise<U
   }
 }
 
-export async function capture(env: Env, bookmarkId: string, getBrowser: BrowserGetter) {
+export async function capture(env: Env, bookmarkId: string, getBrowser: BrowserGetter, opts: { metaOnly?: boolean } = {}) {
   const b = await env.DB.prepare(`SELECT * FROM bookmarks WHERE id = ?`).bind(bookmarkId).first<BookmarkRow>();
   if (!b || b.deleted_at) return;
   const url = b.url;
@@ -166,7 +166,7 @@ export async function capture(env: Env, bookmarkId: string, getBrowser: BrowserG
   }
 
   let thumbKey: string | null = null;
-  try {
+  if (!opts.metaOnly) try {
     const shot = await screenshot(getBrowser, url);
     let img = shot.img;
     // Site qui refuse les robots : on prend son image d'aperçu officielle, sinon l'app dessine un aperçu
@@ -187,7 +187,7 @@ export async function capture(env: Env, bookmarkId: string, getBrowser: BrowserG
     return;
   }
 
-  const failed = !meta && !thumbKey;
+  const failed = !meta && !thumbKey && !(opts.metaOnly && fresh.thumb_key);
   const fallbackTitle = new URL(url).hostname.replace(/^www\./, '');
   await env.DB.prepare(
     `UPDATE bookmarks SET title = ?, favicon_url = COALESCE(?, favicon_url), thumb_key = COALESCE(?, thumb_key),

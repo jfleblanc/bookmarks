@@ -129,7 +129,7 @@ export default {
     try {
       for (const msg of batch.messages) {
         try {
-          await capture(env, msg.body.bookmarkId, getBrowser);
+          await capture(env, msg.body.bookmarkId, getBrowser, { metaOnly: !!msg.body.metaOnly });
           msg.ack();
         } catch (e) {
           console.error('Traitement du signet échoué', msg.body.bookmarkId, e);

@@ -1,4 +1,5 @@
 import { call, getAuth, isSavable } from './api.js';
+import { captureTab } from './capture.js';
 
 // Clic droit : ajouter la page ou un lien sans ouvrir la fenêtre
 chrome.runtime.onInstalled.addListener(() => {
@@ -25,7 +26,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (!isSavable(url)) return badge(tabId, '!', '#B42318', 'Cette adresse ne peut pas être enregistrée.');
   if (!(await getAuth())) return badge(tabId, '!', '#B42318', 'Ouvrez l’extension pour la connecter à votre compte.');
   try {
-    await call('POST', '/api/bookmarks', { url, tags: [] });
+    const thumb = info.menuItemId === 'add-page' && tab ? await captureTab(tab, 'top') : null;
+    await call('POST', '/api/bookmarks', { url, tags: [], ...(thumb ? { thumb } : {}) });
     badge(tabId, '✓', '#0A7C55', 'Ajouté à bookmarks.');
   } catch (e) {
     if (e.code === 'duplicate') badge(tabId, '=', '#5E5E5E', 'Déjà dans vos signets.');

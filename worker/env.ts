@@ -18,6 +18,8 @@ export interface Env {
 
 export interface CaptureJob {
   bookmarkId: string;
+  /** la vignette vient déjà de l'extension : titre et favicon seulement */
+  metaOnly?: boolean;
 }
 
 export interface User {
