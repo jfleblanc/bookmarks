@@ -1,6 +1,6 @@
 // Service worker de bookmarks : garde l'application et les vignettes sur l'appareil pour l'utilisation hors ligne.
 // Les données (signets, tags, collections) sont copiées par l'app dans IndexedDB ; ici on ne s'occupe que des fichiers.
-const SHELL = 'bm-shell-v2';
+const SHELL = 'bm-shell-v3';
 const THUMBS = 'bm-thumbs';   // rempli par l'app selon le choix « Captures réelles »
 const FONTS = 'bm-fonts';
 const STATIC = ['/', '/manifest.webmanifest', '/icon-192.png', '/icon-512.png', '/icon-maskable-512.png', '/icon.svg'];

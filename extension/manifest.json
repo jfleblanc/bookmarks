@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "bookmarks",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Ajoutez la page courante à vos signets bookmarks, avec des tags et une note.",
   "action": {
     "default_popup": "popup.html",
