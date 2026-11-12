@@ -151,6 +151,43 @@ async function previewImage(getBrowser: BrowserGetter, image: string): Promise<U
   }
 }
 
+/** Identifiant d'une vidéo YouTube (watch, youtu.be, shorts, live, embed), sinon null */
+export function youtubeId(raw: string): string | null {
+  let u: URL;
+  try { u = new URL(raw); } catch { return null; }
+  const host = u.hostname.replace(/^(www|m|music)\./, '');
+  let id: string | null = null;
+  if (host === 'youtu.be') id = u.pathname.split('/')[1] || null;
+  else if (host === 'youtube.com' || host === 'youtube-nocookie.com') {
+    if (u.pathname === '/watch') id = u.searchParams.get('v');
+    else id = u.pathname.match(/^\/(?:shorts|live|embed|v)\/([^/?#]+)/)?.[1] || null;
+  }
+  return id && /^[A-Za-z0-9_-]{11}$/.test(id) ? id : null;
+}
+
+/** La vignette officielle de la vidéo, en 16:9 sans bandes noires (aucun navigateur nécessaire) */
+async function youtubeThumb(id: string): Promise<{ img: Uint8Array; ratio: number } | null> {
+  for (const name of ['hq720.jpg', 'maxresdefault.jpg', 'mqdefault.jpg']) {
+    try {
+      const res = await fetch(`https://i.ytimg.com/vi/${id}/${name}`, { headers: { accept: 'image/*' } });
+      if (!res.ok || !(res.headers.get('content-type') || '').startsWith('image/')) continue;
+      const img = new Uint8Array(await res.arrayBuffer());
+      if (img.length > 1500) return { img, ratio: 0.5625 };
+    } catch { /* essaie la taille suivante */ }
+  }
+  return null;
+}
+
+/** Titre de la vidéo par oEmbed, si la page ne l'a pas donné */
+async function youtubeTitle(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(`https://www.youtube.com/oembed?format=json&url=${encodeURIComponent(url)}`);
+    if (!res.ok) return null;
+    const j = await res.json<{ title?: string }>();
+    return j.title?.trim() || null;
+  } catch { return null; }
+}
+
 export async function capture(env: Env, bookmarkId: string, getBrowser: BrowserGetter, opts: { metaOnly?: boolean } = {}) {
   const b = await env.DB.prepare(`SELECT * FROM bookmarks WHERE id = ?`).bind(bookmarkId).first<BookmarkRow>();
   if (!b || b.deleted_at) return;
@@ -165,10 +202,21 @@ export async function capture(env: Env, bookmarkId: string, getBrowser: BrowserG
     metaError = e instanceof Error ? e.message : String(e);
   }
 
+  const ytId = youtubeId(url);
+  if (ytId && meta) {
+    meta.title = meta.title?.replace(/\s*[-–]\s*YouTube\s*$/i, '').trim() || null;
+    if (!meta.title || /^youtube$/i.test(meta.title)) meta.title = await youtubeTitle(url);
+  }
+
   let thumbKey: string | null = null;
+  let ratio = 0.75;
   if (!opts.metaOnly) try {
-    const shot = await screenshot(getBrowser, url);
-    let img = shot.img;
+    let img: Uint8Array | null = null;
+    // Vidéo YouTube : l'image choisie par la chaîne, plus belle qu'une capture de la page
+    const yt = ytId ? await youtubeThumb(ytId) : null;
+    if (yt) { img = yt.img; ratio = yt.ratio; }
+    const shot = img ? { img, blocked: false } : await screenshot(getBrowser, url);
+    img = shot.img;
     // Site qui refuse les robots : on prend son image d'aperçu officielle, sinon l'app dessine un aperçu
     if (!img && shot.blocked && meta?.image) img = await previewImage(getBrowser, meta.image).catch(() => null);
     if (img) {
@@ -191,11 +239,12 @@ export async function capture(env: Env, bookmarkId: string, getBrowser: BrowserG
   const fallbackTitle = new URL(url).hostname.replace(/^www\./, '');
   await env.DB.prepare(
     `UPDATE bookmarks SET title = ?, favicon_url = COALESCE(?, favicon_url), thumb_key = COALESCE(?, thumb_key),
-       thumb_ratio = 0.75, status = ?, error = ?, updated_at = ? WHERE id = ?`
+       thumb_ratio = COALESCE(?, thumb_ratio), status = ?, error = ?, updated_at = ? WHERE id = ?`
   ).bind(
     fresh.title || meta?.title || fallbackTitle,
     meta?.favicon ?? null,
     thumbKey,
+    thumbKey ? ratio : null,
     failed ? 'error' : 'ready',
     failed ? `Impossible de joindre ce site${metaError ? ` (${metaError})` : ''}.` : null,
     now(),

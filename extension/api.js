@@ -42,3 +42,5 @@ export async function call(method, path, body, token) {
 }
 
 export const isSavable = url => /^https?:\/\//i.test(url || '');
+/** Vidéo YouTube : le serveur prend lui-même la vignette officielle de la vidéo */
+export const isYouTubeVideo = url => /^https?:\/\/((www|m|music)\.)?(youtube\.com\/(watch\?(.*&)?v=|shorts\/|live\/)|youtu\.be\/)[\w-]{11}/i.test(url || '');

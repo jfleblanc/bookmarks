@@ -1,4 +1,4 @@
-import { SERVER, call, getAuth, setAuth, clearAuth, isSavable, ApiError } from './api.js';
+import { SERVER, call, getAuth, setAuth, clearAuth, isSavable, isYouTubeVideo, ApiError } from './api.js';
 import { captureTab } from './capture.js';
 
 const $ = id => document.getElementById(id);
@@ -72,6 +72,10 @@ async function showMain() {
     known = tagRes.tags;
     for (const c of colRes.collections) $('coll').add(new Option(c.title, c.id));
     $('collRow').hidden = !colRes.collections.length;
+    if (isYouTubeVideo(tab.url) && !look.item) {
+      $('shot').options[1].hidden = false;
+      $('shot').value = 'auto';
+    }
     if (look.item) {
       existing = look.item;
       tags = [...existing.tags];
@@ -105,7 +109,7 @@ $('addForm').addEventListener('submit', async e => {
   const shotMode = $('shot').value;
   try {
     // Capture faite par votre navigateur ; si elle échoue, le serveur la fera comme avant
-    const thumb = shotMode === 'keep' ? null : await captureTab(tab, shotMode);
+    const thumb = shotMode === 'keep' || shotMode === 'auto' ? null : await captureTab(tab, shotMode);
     const extra = thumb ? { thumb } : {};
     let id;
     if (existing) {

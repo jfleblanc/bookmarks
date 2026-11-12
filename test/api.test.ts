@@ -6,7 +6,7 @@
 import { Database } from 'bun:sqlite';
 import { readFileSync, readdirSync } from 'node:fs';
 import worker from '../worker/index';
-import { capture, looksBlocked, parseHtmlMeta } from '../worker/capture';
+import { capture, looksBlocked, parseHtmlMeta, youtubeId } from '../worker/capture';
 
 /* ---------- Substituts des services Cloudflare ---------- */
 const sqlite = new Database(':memory:');
@@ -288,6 +288,28 @@ console.log('Vignette envoyée par l’extension');
   const up = await adminC.patch(`/api/bookmarks/${r.data.item.id}`, { thumb: 'data:image/jpeg;base64,' + btoa(String.fromCharCode(...jpeg)) });
   const row2 = await env.DB.prepare(`SELECT thumb_key FROM bookmarks WHERE id = ?`).bind(r.data.item.id).first<any>();
   check('modifier : vignette remplacée, ancienne effacée', up.status === 200 && (r2.get(row2.thumb_key) as Uint8Array)[10] === 8 && !r2.has(row.thumb_key));
+}
+
+console.log('YouTube');
+check('ids YouTube reconnus', youtubeId('https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=10') === 'dQw4w9WgXcQ' && youtubeId('https://youtu.be/dQw4w9WgXcQ?si=x') === 'dQw4w9WgXcQ' && youtubeId('https://m.youtube.com/shorts/dQw4w9WgXcQ') === 'dQw4w9WgXcQ');
+check('autres pages YouTube ignorées', youtubeId('https://www.youtube.com/@kepowob') === null && youtubeId('https://exemple.ca/watch?v=dQw4w9WgXcQ') === null);
+{
+  const fetchBefore = globalThis.fetch;
+  const asked: string[] = [];
+  globalThis.fetch = (async (u: any) => {
+    const url = String(u); asked.push(url);
+    if (url.includes('i.ytimg.com') && url.includes('hq720')) return new Response(new Uint8Array(4000).fill(9), { headers: { 'content-type': 'image/jpeg' } });
+    if (url.includes('i.ytimg.com')) return new Response('', { status: 404 });
+    return new Response('<title>Ma vidéo - YouTube</title>', { headers: { 'content-type': 'text/html' } });
+  }) as any;
+  let browserUsed = false;
+  const r = await adminC.post('/api/bookmarks', { url: 'https://youtu.be/dQw4w9WgXcQ' });
+  const job = queue.splice(0).find(j => j.bookmarkId === r.data.item.id)!;
+  await capture(env, job.bookmarkId, (async () => { browserUsed = true; return null; }) as any);
+  const row = await env.DB.prepare(`SELECT title, thumb_key, thumb_ratio, status FROM bookmarks WHERE id = ?`).bind(r.data.item.id).first<any>();
+  check('YouTube : vignette officielle 16:9, sans navigateur', row.status === 'ready' && row.thumb_ratio === 0.5625 && (r2.get(row.thumb_key) as Uint8Array)[0] === 9 && !browserUsed, row);
+  check('YouTube : titre sans « - YouTube »', row.title === 'Ma vidéo', row.title);
+  globalThis.fetch = fetchBefore;
 }
 
 console.log('Préférences et déconnexion');
