@@ -6,6 +6,7 @@ import { addPending, filterLocal, getPending, loadSnapshot, pendingAsBookmark } 
 import { BookmarkCard, Masonry, Sentinel } from '../components/Cards';
 import { TagInput } from '../components/TagInput';
 import { AddToCollectionModal, EditBookmarkModal } from '../components/Dialogs';
+import { t } from '../i18n';
 
 const PAGE = 24;
 
@@ -77,7 +78,7 @@ export default function BookmarksView() {
         setTotal(localList.current.length);
         setCursor(localList.current.length > PAGE ? `local:${PAGE}` : null);
       } else {
-        setLoadError(isNetworkError(e) ? 'Vous êtes hors ligne et aucune copie de vos signets n’est encore enregistrée sur cet appareil.' : e instanceof ApiError ? e.message : 'Chargement impossible.');
+        setLoadError(isNetworkError(e) ? t('Vous êtes hors ligne et aucune copie de vos signets n’est encore enregistrée sur cet appareil.') : e instanceof ApiError ? e.message : t('Chargement impossible.'));
       }
     } finally {
       if (id === reqId.current) setLoading(false);
@@ -117,12 +118,12 @@ export default function BookmarksView() {
   const pendingIds = items.filter(i => i.status === 'processing').map(i => i.id).join(',');
   useEffect(() => {
     if (!pendingIds) return;
-    const t = window.setTimeout(async () => {
+    const timer = window.setTimeout(async () => {
       const ids = pendingIds.split(',').slice(0, 12);
       const fresh = await Promise.all(ids.map(id => api.get<{ item: Bookmark }>(`/api/bookmarks/${id}`).then(r => r.item).catch(() => null)));
       setItems(cur => cur.map(c => fresh.find(f => f?.id === c.id) || c));
     }, 2500);
-    return () => window.clearTimeout(t);
+    return () => window.clearTimeout(timer);
   }, [pendingIds, items]);
 
   // Partage depuis un téléphone (PWA) : /?url=… ou /?text=… préremplit le champ
@@ -151,9 +152,9 @@ export default function BookmarksView() {
     setDrawer(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
-  const toggleTag = (t: string) => {
+  const toggleTag = (tag: string) => {
     const n = new Set(selected);
-    n.has(t) ? n.delete(t) : n.add(t);
+    n.has(tag) ? n.delete(tag) : n.add(tag);
     setFilter(n);
   };
 
@@ -165,25 +166,25 @@ export default function BookmarksView() {
       setUrl(''); setNewTags([]); setNewNote(''); setNoteOpen(false);
       if (selected.size) setFilter(new Set());
       setItems(cur => [item, ...cur]);
-      setTotal(t => t + 1);
+      setTotal(n => n + 1);
       loadTags();
       flash(item.id);
-      toast('Signet ajouté. Extraction en cours…');
+      toast(t('Signet ajouté. Extraction en cours…'));
     } catch (e) {
       if (isNetworkError(e)) {
         // Hors ligne : l'ajout attend sur l'appareil et partira au retour du réseau
-        if (!url.trim()) { setNotice({ text: 'Collez d’abord l’adresse d’un site.', err: true }); return; }
+        if (!url.trim()) { setNotice({ text: t('Collez d’abord l’adresse d’un site.'), err: true }); return; }
         const p = await addPending({ url: url.trim(), tags: newTags, note: newNote });
         setUrl(''); setNewTags([]); setNewNote(''); setNoteOpen(false);
         setItems(cur => [pendingAsBookmark(p), ...cur]);
         refreshPending();
-        toast('Hors ligne : le signet partira dès que vous serez connecté.');
+        toast(t('Hors ligne : le signet partira dès que vous serez connecté.'));
         return;
       }
       if (e instanceof ApiError && e.code === 'duplicate') {
-        setNotice({ text: `Ce site est déjà enregistré : « ${e.data.bookmark.title || e.data.bookmark.domain} ».`, dupId: e.data.bookmark.id });
+        setNotice({ text: t('Ce site est déjà enregistré : « {title} ».', { title: e.data.bookmark.title || e.data.bookmark.domain }), dupId: e.data.bookmark.id });
       } else {
-        setNotice({ text: e instanceof ApiError ? e.message : 'Ajout impossible.', err: true });
+        setNotice({ text: e instanceof ApiError ? e.message : t('Ajout impossible.'), err: true });
       }
     } finally { setAdding(false); }
   }
@@ -193,81 +194,81 @@ export default function BookmarksView() {
     try {
       const { item } = await api.get<{ item: Bookmark }>(`/api/bookmarks/${id}`);
       setEditing(item);
-    } catch { toast('Ce signet est introuvable.'); }
+    } catch { toast(t('Ce signet est introuvable.')); }
   }
 
   async function remove(b: Bookmark) {
     try {
       await api.del(`/api/bookmarks/${b.id}`);
       setItems(cur => cur.filter(c => c.id !== b.id));
-      setTotal(t => t - 1);
+      setTotal(n => n - 1);
       loadTags();
-      toast(`« ${b.title || b.domain} » supprimé.`, {
-        label: 'Annuler',
+      toast(t('« {title} » supprimé.', { title: b.title || b.domain }), {
+        label: t('Annuler'),
         run: async () => { await api.post(`/api/bookmarks/${b.id}/restore`); await reload(); loadTags(); flash(b.id); }
       });
-    } catch (e) { toast(e instanceof ApiError ? e.message : 'Suppression impossible.'); }
+    } catch (e) { toast(e instanceof ApiError ? e.message : t('Suppression impossible.')); }
   }
 
   function stopSelecting() { setSelecting(false); setPicked(new Set()); }
 
-  const visibleTags = tags.filter(t => !tagQuery.trim() || fold(t.name).includes(fold(tagQuery.trim().replace(/^#/, ''))));
+  const visibleTags = tags.filter(tg => !tagQuery.trim() || fold(tg.name).includes(fold(tagQuery.trim().replace(/^#/, ''))));
   const sel = [...selected];
 
   return (
     <section>
       <form className="add" noValidate onSubmit={e => { e.preventDefault(); add(); }}>
         <label className="lbl" htmlFor="urlInput">URL</label>
-        <input className="url-input" id="urlInput" type="url" inputMode="url" placeholder="Coller une adresse" autoComplete="off"
+        <input className="url-input" id="urlInput" type="url" inputMode="url" placeholder={t('Coller une adresse')} autoComplete="off"
           value={url} onChange={e => { setUrl(e.target.value); if (notice) setNotice(null); }} />
         <span className="lbl" aria-hidden="true">TAGS</span>
         <div className="tagfield"><TagInput id="addTags" value={newTags} onChange={setNewTags} known={tags} onSubmitEmpty={add} /></div>
         {!noteOpen && <button type="button" className="ul ink note-toggle" onClick={() => setNoteOpen(true)}>+ Note</button>}
-        <button className="btn btn-primary" type="submit" disabled={adding}>Ajouter ↵</button>
+        <button className="btn btn-primary" type="submit" disabled={adding}>{t('Ajouter ↵')}</button>
         {noteOpen && (
           <div className="add-note">
             <label className="lbl" htmlFor="newNote">NOTE</label>
             <textarea id="newNote" value={newNote} autoFocus maxLength={2000} rows={2}
-              placeholder="Pourquoi ce site, ce qu’il faut y regarder… (visible par vous seul)"
+              placeholder={t('Pourquoi ce site, ce qu’il faut y regarder… (visible par vous seul)')}
               onChange={e => setNewNote(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); add(); } }} />
-            <button type="button" className="clear" onClick={() => { setNoteOpen(false); setNewNote(''); }}>Retirer</button>
+            <button type="button" className="clear" onClick={() => { setNoteOpen(false); setNewNote(''); }}>{t('Retirer')}</button>
           </div>
         )}
         {notice && (
           <div className={`notice${notice.err ? ' err' : ''}`}>
             <span>{notice.text}</span>
-            {notice.dupId && <button type="button" onClick={() => openDuplicate(notice.dupId!)}>Modifier la fiche existante</button>}
+            {notice.dupId && <button type="button" onClick={() => openDuplicate(notice.dupId!)}>{t('Modifier la fiche existante')}</button>}
           </div>
         )}
       </form>
 
       <div className="wrap">
-        <aside className={`side${drawer ? ' open' : ''}`} aria-label="Filtres">
+        <aside className={`side${drawer ? ' open' : ''}`} aria-label={t('Filtres')}>
           <section>
-            <h2>Correspondance</h2>
-            <div className="mode" role="group" aria-label="Mode de filtre">
-              <button type="button" aria-pressed={mode === 'and'} onClick={() => setFilter(selected, 'and')}>ET</button>
+            <h2>{t('Correspondance')}</h2>
+            <div className="mode" role="group" aria-label={t('Mode de filtre')}>
+              <button type="button" aria-pressed={mode === 'and'} onClick={() => setFilter(selected, 'and')}>{t('ET')}</button>
               <span className="sep" aria-hidden="true">/</span>
-              <button type="button" aria-pressed={mode === 'or'} onClick={() => setFilter(selected, 'or')}>OU</button>
+              <button type="button" aria-pressed={mode === 'or'} onClick={() => setFilter(selected, 'or')}>{t('OU')}</button>
             </div>
-            <p className="mode-hint">{mode === 'and' ? 'Les signets qui ont tous les tags choisis.' : 'Les signets qui ont au moins un des tags choisis.'}</p>
+            <p className="mode-hint">{mode === 'and' ? t('Les signets qui ont tous les tags choisis.') : t('Les signets qui ont au moins un des tags choisis.')}</p>
           </section>
           <section>
             <div className="side-head">
-              <h2>Index des tags</h2>
-              {selected.size > 0 && <button className="clear" type="button" onClick={() => setFilter(new Set())}>Effacer</button>}
+              <h2>{t('Index des tags')}</h2>
+              {selected.size > 0 && <button className="clear" type="button" onClick={() => setFilter(new Set())}>{t('Effacer')}</button>}
             </div>
-            <input className="tag-search" type="search" placeholder="Chercher un tag" aria-label="Chercher un tag" value={tagQuery} onChange={e => setTagQuery(e.target.value)} />
+            <input className="tag-search" type="search" placeholder={t('Chercher un tag')} aria-label={t('Chercher un tag')} value={tagQuery} onChange={e => setTagQuery(e.target.value)} />
             <ul className="taglist">
-              {visibleTags.map(t => (
-                <li key={t.name}>
-                  <button type="button" aria-pressed={selected.has(t.name)} onClick={() => toggleTag(t.name)}>
-                    <span>{selected.has(t.name) ? '● ' : ''}{t.name}</span><sup>{t.count}</sup>
+              {visibleTags.map(tg => (
+                <li key={tg.name}>
+                  <button type="button" aria-pressed={selected.has(tg.name)} onClick={() => toggleTag(tg.name)}>
+                    <span>{selected.has(tg.name) ? '● ' : ''}{tg.name}</span><sup>{tg.count}</sup>
                   </button>
                 </li>
               ))}
-              {!visibleTags.length && <li className="muted-li">{tags.length ? 'Aucun tag trouvé.' : 'Vos tags apparaîtront ici.'}</li>}
+              {!visibleTags.length && <li className="muted-li">{tags.length ? t('Aucun tag trouvé.') : t('Vos tags apparaîtront ici.')}</li>}
             </ul>
           </section>
         </aside>
@@ -278,30 +279,30 @@ export default function BookmarksView() {
             <div className="q">
               {sel.length ? (
                 <>
-                  {sel.map((t, i) => (
-                    <span key={t} className="q">
-                      {i > 0 && <span>{mode === 'and' ? 'ET' : 'OU'}</span>}
-                      <button type="button" className="f" aria-label={`Retirer le filtre ${t}`} onClick={() => toggleTag(t)}>#{t} ×</button>
+                  {sel.map((tag, i) => (
+                    <span key={tag} className="q">
+                      {i > 0 && <span>{mode === 'and' ? t('ET') : t('OU')}</span>}
+                      <button type="button" className="f" aria-label={t('Retirer le filtre {tag}', { tag })} onClick={() => toggleTag(tag)}>#{tag} ×</button>
                     </span>
                   ))}
                   <span>—</span>
                 </>
-              ) : <span>Tous les signets —</span>}
+              ) : <span>{t('Tous les signets —')}</span>}
               <span>{loading ? '…' : plural(total, 'résultat', 'résultats')}</span>
             </div>
             <div className="tools">
-              <button type="button" className="filters-toggle" onClick={() => setDrawer(d => !d)}>{selected.size ? `Filtres (${selected.size})` : 'Filtres'}</button>
-              {items.length > 0 && !offline && <button type="button" onClick={() => (selecting ? stopSelecting() : setSelecting(true))}>{selecting ? 'Terminer la sélection' : 'Sélectionner'}</button>}
+              <button type="button" className="filters-toggle" onClick={() => setDrawer(d => !d)}>{selected.size ? t('Filtres ({n})', { n: selected.size }) : t('Filtres')}</button>
+              {items.length > 0 && !offline && <button type="button" onClick={() => (selecting ? stopSelecting() : setSelecting(true))}>{selecting ? t('Terminer la sélection') : t('Sélectionner')}</button>}
             </div>
           </div>
 
           {loadError ? (
-            <div className="empty"><strong>Chargement impossible</strong>{loadError} <button type="button" className="ul ink" onClick={reload}>Réessayer</button></div>
+            <div className="empty"><strong>{t('Chargement impossible')}</strong>{loadError} <button type="button" className="ul ink" onClick={reload}>{t('Réessayer')}</button></div>
           ) : !loading && !items.length ? (
             <div className="empty">
               {selected.size
-                ? <><strong>Aucun signet ne correspond</strong>{mode === 'and' && selected.size > 1 ? 'Aucun signet n’a tous ces tags. Essayez le mode OU.' : 'Retirez un filtre pour voir plus de signets.'}</>
-                : <><strong>Aucun signet pour l’instant</strong>Collez une adresse dans le champ URL pour ajouter votre premier site.</>}
+                ? <><strong>{t('Aucun signet ne correspond')}</strong>{mode === 'and' && selected.size > 1 ? t('Aucun signet n’a tous ces tags. Essayez le mode OU.') : t('Retirez un filtre pour voir plus de signets.')}</>
+                : <><strong>{t('Aucun signet pour l’instant')}</strong>{t('Collez une adresse dans le champ URL pour ajouter votre premier site.')}</>}
             </div>
           ) : (
             <Masonry items={items} render={b => (
@@ -316,23 +317,23 @@ export default function BookmarksView() {
                 onPick={() => setPicked(p => { const n = new Set(p); n.has(b.id) ? n.delete(b.id) : n.add(b.id); return n; })}
                 flash={flashId === b.id}
                 actions={offline || b.status === 'pending' ? undefined : <>
-                  <button type="button" onClick={() => setEditing(b)}>Modifier</button>
-                  <button type="button" onClick={() => setCollecting([b.id])}>+ Collection</button>
-                  <button type="button" className="del" onClick={() => remove(b)}>Supprimer</button>
+                  <button type="button" onClick={() => setEditing(b)}>{t('Modifier')}</button>
+                  <button type="button" onClick={() => setCollecting([b.id])}>{t('+ Collection')}</button>
+                  <button type="button" className="del" onClick={() => remove(b)}>{t('Supprimer')}</button>
                 </>}
               />
             )} />
           )}
           <Sentinel onVisible={loadMore} disabled={!cursor || loading} />
-          {cursor && !loading && <div className="more">{plural(total - items.length, 'autre signet', 'autres signets')} à charger…</div>}
+          {cursor && !loading && <div className="more">{t('{count} à charger…', { count: plural(total - items.length, 'autre signet', 'autres signets') })}</div>}
         </main>
       </div>
 
       {selecting && (
         <div className="selbar">
-          <span className="n">{picked.size ? plural(picked.size, 'signet sélectionné', 'signets sélectionnés') : 'Touchez des cartes pour les sélectionner'}</span>
-          <button type="button" className="go" disabled={!picked.size} onClick={() => setCollecting([...picked])}>Ajouter à une collection</button>
-          <button type="button" onClick={stopSelecting}>Annuler</button>
+          <span className="n">{picked.size ? plural(picked.size, 'signet sélectionné', 'signets sélectionnés') : t('Touchez des cartes pour les sélectionner')}</span>
+          <button type="button" className="go" disabled={!picked.size} onClick={() => setCollecting([...picked])}>{t('Ajouter à une collection')}</button>
+          <button type="button" onClick={stopSelecting}>{t('Annuler')}</button>
         </div>
       )}
       {editing && (

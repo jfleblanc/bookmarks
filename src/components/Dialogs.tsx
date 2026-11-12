@@ -4,6 +4,7 @@ import { api, ApiError, fold, plural, type Bookmark, type BookmarkLite, type Col
 import { useToast } from '../context';
 import { Modal } from './Modal';
 import { TagInput } from './TagInput';
+import { t } from '../i18n';
 
 /* ---------- Modifier un signet ---------- */
 
@@ -22,30 +23,30 @@ export function EditBookmarkModal({ item, knownTags, onClose, onSaved }: {
     setBusy(true); setErr('');
     try {
       const { item: b } = await api.patch<{ item: Bookmark }>(`/api/bookmarks/${item.id}`, { url, title, tags, note });
-      onSaved(b); onClose(); toast('Modifications enregistrées.');
+      onSaved(b); onClose(); toast(t('Modifications enregistrées.'));
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : 'Enregistrement impossible.');
+      setErr(e instanceof ApiError ? e.message : t('Enregistrement impossible.'));
     } finally { setBusy(false); }
   }
   async function recapture() {
     try {
       const { item: b } = await api.post<{ item: Bookmark }>(`/api/bookmarks/${item.id}/recapture`);
-      onSaved(b); onClose(); toast('Nouvelle capture en cours…');
-    } catch (e) { setErr(e instanceof ApiError ? e.message : 'Action impossible.'); }
+      onSaved(b); onClose(); toast(t('Nouvelle capture en cours…'));
+    } catch (e) { setErr(e instanceof ApiError ? e.message : t('Action impossible.')); }
   }
 
   return (
-    <Modal title="Modifier" onClose={onClose} onSubmit={save}>
+    <Modal title={t('Modifier')} onClose={onClose} onSubmit={save}>
       <label><span className="lbl">URL</span><input className="plain mono" value={url} onChange={e => setUrl(e.target.value)} autoComplete="off" /></label>
-      <label><span className="lbl">TITRE</span><input className="plain" value={title} placeholder={item.domain} onChange={e => setTitle(e.target.value)} autoComplete="off" data-autofocus /></label>
+      <label><span className="lbl">{t('TITRE')}</span><input className="plain" value={title} placeholder={item.domain} onChange={e => setTitle(e.target.value)} autoComplete="off" data-autofocus /></label>
       <div><span className="lbl">TAGS</span><div className="tagbox"><TagInput id="editTags" value={tags} onChange={setTags} known={knownTags} /></div></div>
-      <label><span className="lbl">NOTE</span><textarea className="plain" value={note} onChange={e => setNote(e.target.value)} placeholder="Pourquoi ce site, ce qu’il faut y regarder… (visible par vous seul)" maxLength={2000} /></label>
+      <label><span className="lbl">NOTE</span><textarea className="plain" value={note} onChange={e => setNote(e.target.value)} placeholder={t('Pourquoi ce site, ce qu’il faut y regarder… (visible par vous seul)')} maxLength={2000} /></label>
       {err && <div className="err">{err}</div>}
       <div className="row spread">
-        <button type="button" className="ul ink" onClick={recapture}>Refaire la capture</button>
+        <button type="button" className="ul ink" onClick={recapture}>{t('Refaire la capture')}</button>
         <span className="row">
-          <button type="button" className="btn" onClick={onClose}>Annuler</button>
-          <button type="submit" className="btn btn-primary" disabled={busy}>Enregistrer</button>
+          <button type="button" className="btn" onClick={onClose}>{t('Annuler')}</button>
+          <button type="submit" className="btn btn-primary" disabled={busy}>{t('Enregistrer')}</button>
         </span>
       </div>
     </Modal>
@@ -69,24 +70,28 @@ export function AddToCollectionModal({ ids, onClose, onDone }: { ids: string[]; 
     try {
       const r = await api.post<{ added: number; already: number }>(`/api/collections/${c.id}/items`, { bookmarkIds: ids });
       onClose(); onDone?.();
+      const added = r.added ? plural(r.added, 'signet ajouté', 'signets ajoutés') : '';
       toast(
-        r.added ? `${plural(r.added, 'signet ajouté', 'signets ajoutés')} à « ${c.title} »${r.already ? ` (${r.already} déjà présent${r.already > 1 ? 's' : ''})` : ''}.` : `Déjà dans « ${c.title} ».`,
-        { label: 'Voir', run: () => navigate(`/collections/${c.id}`) }
+        !r.added ? t('Déjà dans « {title} ».', { title: c.title })
+          : !r.already ? t('{bookmarks} à « {title} ».', { bookmarks: added, title: c.title })
+          : r.already > 1 ? t('{bookmarks} à « {title} » ({n} déjà présents).', { bookmarks: added, title: c.title, n: r.already })
+          : t('{bookmarks} à « {title} » ({n} déjà présent).', { bookmarks: added, title: c.title, n: r.already }),
+        { label: t('Voir'), run: () => navigate(`/collections/${c.id}`) }
       );
-    } catch (e) { setErr(e instanceof ApiError ? e.message : 'Ajout impossible.'); }
+    } catch (e) { setErr(e instanceof ApiError ? e.message : t('Ajout impossible.')); }
   }
   async function createAndAdd() {
-    if (!title.trim()) { setErr('Donnez un titre à la nouvelle collection.'); return; }
+    if (!title.trim()) { setErr(t('Donnez un titre à la nouvelle collection.')); return; }
     try {
       const r = await api.post<{ collection: Collection }>('/api/collections', { title, bookmarkIds: ids });
       onClose(); onDone?.();
-      toast(`${plural(ids.length, 'signet ajouté', 'signets ajoutés')} à « ${r.collection.title} ».`, { label: 'Voir', run: () => navigate(`/collections/${r.collection.id}`) });
-    } catch (e) { setErr(e instanceof ApiError ? e.message : 'Création impossible.'); }
+      toast(t('{bookmarks} à « {title} ».', { bookmarks: plural(ids.length, 'signet ajouté', 'signets ajoutés'), title: r.collection.title }), { label: t('Voir'), run: () => navigate(`/collections/${r.collection.id}`) });
+    } catch (e) { setErr(e instanceof ApiError ? e.message : t('Création impossible.')); }
   }
 
   return (
-    <Modal title="Ajouter à une collection" sub={plural(ids.length, 'signet', 'signets')} onClose={onClose} onSubmit={createAndAdd}>
-      {collections === null ? <p className="note">Chargement…</p> : collections.length > 0 && (
+    <Modal title={t('Ajouter à une collection')} sub={plural(ids.length, 'signet', 'signets')} onClose={onClose} onSubmit={createAndAdd}>
+      {collections === null ? <p className="note">{t('Chargement…')}</p> : collections.length > 0 && (
         <ul className="choices">
           {collections.map(c => (
             <li key={c.id}>
@@ -96,11 +101,11 @@ export function AddToCollectionModal({ ids, onClose, onDone }: { ids: string[]; 
         </ul>
       )}
       <div className="newc">
-        <label><span className="lbl">NOUVELLE COLLECTION</span><input className="plain" value={title} onChange={e => setTitle(e.target.value)} placeholder="Titre de la collection" autoComplete="off" maxLength={120} /></label>
-        <button type="submit" className="btn btn-primary">Créer et ajouter</button>
+        <label><span className="lbl">{t('NOUVELLE COLLECTION')}</span><input className="plain" value={title} onChange={e => setTitle(e.target.value)} placeholder={t('Titre de la collection')} autoComplete="off" maxLength={120} /></label>
+        <button type="submit" className="btn btn-primary">{t('Créer et ajouter')}</button>
       </div>
       {err && <div className="err">{err}</div>}
-      <div className="row"><button type="button" className="btn" onClick={onClose}>Annuler</button></div>
+      <div className="row"><button type="button" className="btn" onClick={onClose}>{t('Annuler')}</button></div>
     </Modal>
   );
 }
@@ -114,22 +119,22 @@ export function CollectionFormModal({ collection, onClose, onSaved }: {
   const [description, setDescription] = useState(collection?.description || '');
   const [err, setErr] = useState('');
   async function save() {
-    if (!title.trim()) { setErr('Le titre est obligatoire.'); return; }
+    if (!title.trim()) { setErr(t('Le titre est obligatoire.')); return; }
     try {
       const r = collection
         ? await api.patch<{ collection: Collection }>(`/api/collections/${collection.id}`, { title, description })
         : await api.post<{ collection: Collection }>('/api/collections', { title, description });
       onSaved(r.collection); onClose();
-    } catch (e) { setErr(e instanceof ApiError ? e.message : 'Enregistrement impossible.'); }
+    } catch (e) { setErr(e instanceof ApiError ? e.message : t('Enregistrement impossible.')); }
   }
   return (
-    <Modal title={collection ? 'Modifier la collection' : 'Nouvelle collection'} onClose={onClose} onSubmit={save}>
-      <label><span className="lbl">TITRE</span><input className="plain" value={title} onChange={e => setTitle(e.target.value)} placeholder="Ex. : Ressources pour le projet final" maxLength={120} autoComplete="off" /></label>
-      <label><span className="lbl">DESCRIPTION</span><textarea className="plain" value={description} onChange={e => setDescription(e.target.value)} placeholder="À quoi sert cette collection, pour qui" maxLength={600} /></label>
+    <Modal title={collection ? t('Modifier la collection') : t('Nouvelle collection')} onClose={onClose} onSubmit={save}>
+      <label><span className="lbl">{t('TITRE')}</span><input className="plain" value={title} onChange={e => setTitle(e.target.value)} placeholder={t('Ex. : Ressources pour le projet final')} maxLength={120} autoComplete="off" /></label>
+      <label><span className="lbl">DESCRIPTION</span><textarea className="plain" value={description} onChange={e => setDescription(e.target.value)} placeholder={t('À quoi sert cette collection, pour qui')} maxLength={600} /></label>
       {err && <div className="err">{err}</div>}
       <div className="row">
-        <button type="button" className="btn" onClick={onClose}>Annuler</button>
-        <button type="submit" className="btn btn-primary">{collection ? 'Enregistrer' : 'Créer'}</button>
+        <button type="button" className="btn" onClick={onClose}>{t('Annuler')}</button>
+        <button type="submit" className="btn btn-primary">{collection ? t('Enregistrer') : t('Créer')}</button>
       </div>
     </Modal>
   );
@@ -155,9 +160,9 @@ export function PickerModal({ selectedIds, onClose, onSave }: { selectedIds: str
     onSave([...kept, ...added]);
   }
   return (
-    <Modal title="Signets de la collection" sub="Cochez les signets à inclure. Décocher retire le signet de la collection, pas de vos signets." onClose={onClose} onSubmit={save}>
-      <input className="plain" type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Filtrer par titre, domaine ou #tag" aria-label="Filtrer les signets" autoComplete="off" />
-      {all === null ? <p className="note">Chargement…</p> : (
+    <Modal title={t('Signets de la collection')} sub={t('Cochez les signets à inclure. Décocher retire le signet de la collection, pas de vos signets.')} onClose={onClose} onSubmit={save}>
+      <input className="plain" type="search" value={q} onChange={e => setQ(e.target.value)} placeholder={t('Filtrer par titre, domaine ou #tag')} aria-label={t('Filtrer les signets')} autoComplete="off" />
+      {all === null ? <p className="note">{t('Chargement…')}</p> : (
         <ul className="picklist">
           {visible.map(b => (
             <li key={b.id}>
@@ -171,12 +176,12 @@ export function PickerModal({ selectedIds, onClose, onSave }: { selectedIds: str
               </label>
             </li>
           ))}
-          {!visible.length && <li className="note">Aucun signet ne correspond.</li>}
+          {!visible.length && <li className="note">{t('Aucun signet ne correspond.')}</li>}
         </ul>
       )}
       <div className="row">
-        <button type="button" className="btn" onClick={onClose}>Annuler</button>
-        <button type="submit" className="btn btn-primary">Enregistrer</button>
+        <button type="button" className="btn" onClick={onClose}>{t('Annuler')}</button>
+        <button type="submit" className="btn btn-primary">{t('Enregistrer')}</button>
       </div>
     </Modal>
   );

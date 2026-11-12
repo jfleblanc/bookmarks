@@ -49,6 +49,7 @@ const fakeBrowser = async () => ({ newPage: async () => ({ setUserAgent: async (
 
 /* ---------- Client HTTP de test ---------- */
 class Client {
+  lang = '';
   cookie = '';
   bearer = '';
   async call(method: string, path: string, body?: unknown, origin = 'https://bm.test') {
@@ -57,6 +58,7 @@ class Client {
     if (this.bearer) headers.authorization = `Bearer ${this.bearer}`;
     if (body !== undefined) headers['content-type'] = 'application/json';
     if (method !== 'GET') headers.origin = origin;
+    if (this.lang) headers['x-lang'] = this.lang;
     const waits: Promise<unknown>[] = [];
     const res = await worker.fetch(new Request('https://bm.test' + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) }), env, { waitUntil: (p: Promise<unknown>) => waits.push(p), passThroughOnException() {} } as any);
     await Promise.all(waits);
@@ -310,6 +312,22 @@ check('autres pages YouTube ignorées', youtubeId('https://www.youtube.com/@kepo
   check('YouTube : vignette officielle 16:9, sans navigateur', row.status === 'ready' && row.thumb_ratio === 0.5625 && (r2.get(row.thumb_key) as Uint8Array)[0] === 9 && !browserUsed, row);
   check('YouTube : titre sans « - YouTube »', row.title === 'Ma vidéo', row.title);
   globalThis.fetch = fetchBefore;
+}
+
+console.log('Langue');
+{
+  const d1 = await adminC.post('/api/bookmarks', { url: 'https://www.lapresse.ca/article-test' });
+  check('erreur en français par défaut', d1.status === 409 && d1.data.message === 'Ce site est déjà enregistré.', d1.data.message);
+  adminC.lang = 'en';
+  const d2 = await adminC.post('/api/bookmarks', { url: 'https://www.lapresse.ca/article-test' });
+  check('erreur en anglais avec X-Lang: en', d2.data.message === 'This site is already saved.', d2.data.message);
+  adminC.lang = '';
+  const p1 = await adminC.patch('/api/me/prefs', { lang: 'en' });
+  check('préférence de langue enregistrée', p1.data.prefs.lang === 'en', p1.data);
+  const d3 = await adminC.post('/api/bookmarks', { url: 'https://www.lapresse.ca/article-test' });
+  check('sans X-Lang : langue du compte', d3.data.message === 'This site is already saved.', d3.data.message);
+  const p2 = await adminC.patch('/api/me/prefs', { lang: null });
+  check('préférence de langue retirée (selon le navigateur)', !('lang' in p2.data.prefs), p2.data);
 }
 
 console.log('Préférences et déconnexion');

@@ -1,10 +1,12 @@
 /* Client de l'API et types partagés par l'interface */
+import { getLang, t } from './i18n';
+export { plural } from './i18n';
 
 export interface User {
   id: string;
   email: string;
   role: 'admin' | 'member';
-  prefs: { bw?: boolean; hoverColor?: boolean };
+  prefs: { bw?: boolean; hoverColor?: boolean; lang?: 'fr' | 'en' | null };
 }
 
 export interface Bookmark {
@@ -75,18 +77,19 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     res = await fetch(path, {
       method,
       credentials: 'same-origin',
-      headers: body !== undefined ? { 'content-type': 'application/json' } : undefined,
+      // X-Lang : le serveur répond (erreurs, courriels) dans la langue de l'interface
+      headers: body !== undefined ? { 'content-type': 'application/json', 'x-lang': getLang() } : { 'x-lang': getLang() },
       body: body !== undefined ? JSON.stringify(body) : undefined
     });
   } catch {
     setReachable(false);
-    throw new ApiError(0, 'network', 'Vous êtes hors ligne. Réessayez une fois connecté.', null);
+    throw new ApiError(0, 'network', t('Vous êtes hors ligne. Réessayez une fois connecté.'), null);
   }
   setReachable(true);
   const data = (res.headers.get('content-type') || '').includes('json') ? await res.json() : null;
   if (!res.ok) {
     if (res.status === 401 && onUnauthenticated) onUnauthenticated();
-    throw new ApiError(res.status, data?.error || 'error', data?.message || 'Une erreur est survenue.', data);
+    throw new ApiError(res.status, data?.error || 'error', data?.message || t('Une erreur est survenue.'), data);
   }
   if (method !== 'GET' && !path.startsWith('/api/auth') && onMutation) onMutation();
   return data as T;
@@ -103,7 +106,6 @@ export const api = {
 
 export const isNetworkError = (e: unknown) => e instanceof ApiError && e.code === 'network';
 
-export const plural = (n: number, one: string, many: string) => `${n} ${n > 1 ? many : one}`;
 
 const pad = (n: number) => String(n).padStart(2, '0');
 export function shortDate(ts: number): string {
@@ -111,8 +113,8 @@ export function shortDate(ts: number): string {
   const today = new Date();
   const start = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
   const days = Math.round((start(today) - start(d)) / 86_400_000);
-  if (days <= 0) return 'auj.';
-  if (days === 1) return 'hier';
+  if (days <= 0) return t('auj.');
+  if (days === 1) return t('hier');
   return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}${d.getFullYear() !== today.getFullYear() ? '.' + String(d.getFullYear()).slice(2) : ''}`;
 }
 export function fullDate(ts: number): string {

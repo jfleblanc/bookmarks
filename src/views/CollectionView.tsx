@@ -6,6 +6,7 @@ import { loadSnapshot, localCollection } from '../offline';
 import { BookmarkCard, Masonry } from '../components/Cards';
 import { CollectionFormModal, PickerModal } from '../components/Dialogs';
 import { Switch } from '../components/Modal';
+import { t } from '../i18n';
 
 export default function CollectionView() {
   const { id } = useParams();
@@ -29,7 +30,7 @@ export default function CollectionView() {
         const s = isNetworkError(e) ? await loadSnapshot(user?.id) : null;
         const local = s && id ? localCollection(s, id) : null;
         if (local) apply(local);
-        else setError(e instanceof ApiError && e.status === 404 ? 'Cette collection n’existe pas ou a été supprimée.' : isNetworkError(e) ? 'Vous êtes hors ligne et cette collection n’est pas dans la copie de l’appareil.' : 'Chargement impossible.');
+        else setError(e instanceof ApiError && e.status === 404 ? t('Cette collection n’existe pas ou a été supprimée.') : isNetworkError(e) ? t('Vous êtes hors ligne et cette collection n’est pas dans la copie de l’appareil.') : t('Chargement impossible.'));
       });
   }, [id, user?.id, offline]);
   useEffect(() => { load(); }, [load]);
@@ -39,39 +40,39 @@ export default function CollectionView() {
       apply(await api.patch(`/api/collections/${id}`, body));
       return true;
     } catch (e) {
-      toast(e instanceof ApiError ? e.message : 'Modification impossible.');
+      toast(e instanceof ApiError ? e.message : t('Modification impossible.'));
       return false;
     }
   }
 
   async function toggleShare(v: boolean) {
-    if (await patch({ shared: v })) toast(v ? 'Partage activé. Le lien fonctionne.' : 'Partage désactivé. Le lien ne fonctionne plus.');
+    if (await patch({ shared: v })) toast(v ? t('Partage activé. Le lien fonctionne.') : t('Partage désactivé. Le lien ne fonctionne plus.'));
   }
   async function copy() {
     if (!col) return;
-    toast((await copyText(col.shareUrl, linkInput.current)) ? 'Lien copié.' : 'Lien sélectionné. Copiez-le avec Ctrl+C ou Cmd+C.');
+    toast((await copyText(col.shareUrl, linkInput.current)) ? t('Lien copié.') : t('Lien sélectionné. Copiez-le avec Ctrl+C ou Cmd+C.'));
   }
   async function regenerate() {
     if (!col) return;
     const old = col.shareUrl;
     try {
       apply(await api.post(`/api/collections/${id}/regenerate`));
-      toast('Nouveau lien créé. L’ancien ne fonctionne plus.', {
-        label: 'Annuler',
-        run: async () => { try { apply(await api.post(`/api/collections/${id}/restore-link`, { shareUrl: old })); } catch { toast('L’ancien lien n’a pas pu être remis.'); } }
+      toast(t('Nouveau lien créé. L’ancien ne fonctionne plus.'), {
+        label: t('Annuler'),
+        run: async () => { try { apply(await api.post(`/api/collections/${id}/restore-link`, { shareUrl: old })); } catch { toast(t('L’ancien lien n’a pas pu être remis.')); } }
       });
-    } catch { toast('Action impossible.'); }
+    } catch { toast(t('Action impossible.')); }
   }
   async function remove() {
     if (!col) return;
     try {
       await api.del(`/api/collections/${id}`);
       navigate('/collections');
-      toast(`Collection « ${col.title} » supprimée. Vos signets sont intacts.`, {
-        label: 'Annuler',
+      toast(t('Collection « {title} » supprimée. Vos signets sont intacts.', { title: col.title }), {
+        label: t('Annuler'),
         run: async () => { await api.post(`/api/collections/${id}/restore`); navigate(`/collections/${id}`); }
       });
-    } catch { toast('Suppression impossible.'); }
+    } catch { toast(t('Suppression impossible.')); }
   }
   function move(bid: string, dir: -1 | 1) {
     const ids = items.map(i => i.id);
@@ -84,51 +85,51 @@ export default function CollectionView() {
   async function takeOut(b: Bookmark) {
     const before = items.map(i => i.id);
     if (await patch({ itemIds: before.filter(x => x !== b.id) })) {
-      toast('Signet retiré de la collection.', { label: 'Annuler', run: () => patch({ itemIds: before }) });
+      toast(t('Signet retiré de la collection.'), { label: t('Annuler'), run: () => patch({ itemIds: before }) });
     }
   }
 
-  if (error) return <section><div className="crumb"><Link to="/collections">← Collections</Link></div><div className="empty"><strong>Introuvable</strong>{error}</div></section>;
-  if (!col) return <section><p className="note pad">Chargement…</p></section>;
+  if (error) return <section><div className="crumb"><Link to="/collections">← {t('Collections')}</Link></div><div className="empty"><strong>{t('Introuvable')}</strong>{error}</div></section>;
+  if (!col) return <section><p className="note pad">{t('Chargement…')}</p></section>;
 
   return (
     <section>
-      <div className="crumb"><Link to="/collections">← Collections</Link></div>
+      <div className="crumb"><Link to="/collections">← {t('Collections')}</Link></div>
       <div className="vhead">
         <h1>{col.title}</h1>
-        <span className="mrow"><span>{plural(items.length, 'signet', 'signets')}</span><span>modifiée {shortDate(col.updatedAt)}</span></span>
+        <span className="mrow"><span>{plural(items.length, 'signet', 'signets')}</span><span>{t('modifiée {date}', { date: shortDate(col.updatedAt) })}</span></span>
       </div>
-      <p className={`cdesc${col.description ? '' : ' faint'}`}>{col.description || 'Pas de description.'}</p>
+      <p className={`cdesc${col.description ? '' : ' faint'}`}>{col.description || t('Pas de description.')}</p>
       {!offline && <><div className="cactions">
-        <button type="button" className="ul ink" onClick={() => setEditing(true)}>Modifier le titre et la description</button>
-        <button type="button" className="ul ink" onClick={() => setPicking(true)}>Ajouter ou retirer des signets</button>
-        <button type="button" className="ul danger" onClick={remove}>Supprimer la collection</button>
+        <button type="button" className="ul ink" onClick={() => setEditing(true)}>{t('Modifier le titre et la description')}</button>
+        <button type="button" className="ul ink" onClick={() => setPicking(true)}>{t('Ajouter ou retirer des signets')}</button>
+        <button type="button" className="ul danger" onClick={remove}>{t('Supprimer la collection')}</button>
       </div>
       <div className="share">
-        <Switch checked={col.shared} onChange={toggleShare} label={col.shared ? 'Partage activé' : 'Partage désactivé'} />
-        <input className="linkbox" ref={linkInput} readOnly value={col.shareUrl} aria-label="Lien de partage" disabled={!col.shared} />
-        <button type="button" className="btn btn-primary" onClick={copy} disabled={!col.shared}>Copier le lien</button>
-        {col.shared && <a className="ul ink" href={col.shareUrl} target="_blank" rel="noopener noreferrer">Voir comme visiteur ↗</a>}
-        <button type="button" className="ul ink" onClick={regenerate}>Nouveau lien</button>
+        <Switch checked={col.shared} onChange={toggleShare} label={col.shared ? t('Partage activé') : t('Partage désactivé')} />
+        <input className="linkbox" ref={linkInput} readOnly value={col.shareUrl} aria-label={t('Lien de partage')} disabled={!col.shared} />
+        <button type="button" className="btn btn-primary" onClick={copy} disabled={!col.shared}>{t('Copier le lien')}</button>
+        {col.shared && <a className="ul ink" href={col.shareUrl} target="_blank" rel="noopener noreferrer">{t('Voir comme visiteur')} ↗</a>}
+        <button type="button" className="ul ink" onClick={regenerate}>{t('Nouveau lien')}</button>
         <p className="hint">{col.shared
-          ? 'Toute personne qui a ce lien peut voir la collection, sans compte. Elle ne peut rien modifier.'
-          : 'Le lien ne fonctionne pas tant que le partage est désactivé. Vous seul voyez cette collection.'}</p>
+          ? t('Toute personne qui a ce lien peut voir la collection, sans compte. Elle ne peut rien modifier.')
+          : t('Le lien ne fonctionne pas tant que le partage est désactivé. Vous seul voyez cette collection.')}</p>
       </div></>}
       <div className="cgrid-wrap">
         {items.length ? (
           <Masonry items={items} render={b => (
             <BookmarkCard key={b.id} item={b} mode="owner" actions={offline ? undefined : <>
-              <button type="button" onClick={() => move(b.id, -1)}>Monter</button>
-              <button type="button" onClick={() => move(b.id, 1)}>Descendre</button>
-              <button type="button" className="del" onClick={() => takeOut(b)}>Retirer</button>
+              <button type="button" onClick={() => move(b.id, -1)}>{t('Monter')}</button>
+              <button type="button" onClick={() => move(b.id, 1)}>{t('Descendre')}</button>
+              <button type="button" className="del" onClick={() => takeOut(b)}>{t('Retirer')}</button>
             </>} />
           )} />
         ) : (
-          <div className="empty"><strong>Collection vide</strong>Ajoutez des signets avec « Ajouter ou retirer des signets », ou depuis vos signets avec « + Collection ».</div>
+          <div className="empty"><strong>{t('Collection vide')}</strong>{t('Ajoutez des signets avec « Ajouter ou retirer des signets », ou depuis vos signets avec « + Collection ».')}</div>
         )}
       </div>
-      {editing && <CollectionFormModal collection={col} onClose={() => setEditing(false)} onSaved={() => { load(); toast('Collection mise à jour.'); }} />}
-      {picking && <PickerModal selectedIds={items.map(i => i.id)} onClose={() => setPicking(false)} onSave={async ids => { setPicking(false); if (await patch({ itemIds: ids })) toast('Collection mise à jour.'); }} />}
+      {editing && <CollectionFormModal collection={col} onClose={() => setEditing(false)} onSaved={() => { load(); toast(t('Collection mise à jour.')); }} />}
+      {picking && <PickerModal selectedIds={items.map(i => i.id)} onClose={() => setPicking(false)} onSave={async ids => { setPicking(false); if (await patch({ itemIds: ids })) toast(t('Collection mise à jour.')); }} />}
     </section>
   );
 }

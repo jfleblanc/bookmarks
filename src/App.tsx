@@ -1,5 +1,6 @@
 import { Navigate, NavLink, Outlet, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { api } from './api';
+import { api, plural } from './api';
+import { locale, t } from './i18n';
 import { useAuth, useOffline } from './context';
 import { Ribbon } from './components/Ribbon';
 import { UserMenu } from './components/UserMenu';
@@ -74,18 +75,18 @@ function AppLayout() {
   return (
     <div className={`page${bw ? ' bw' : ''}${hoverColor ? ' hover-color' : ''}`} id="app">
       <header className="brandrow">
-        <NavLink to="/" className="logo" aria-label="bookmarks, accueil"><Ribbon /></NavLink>
-        <nav className="nav" aria-label="Navigation principale">
-          <NavLink to="/" end>Signets</NavLink>
-          <NavLink to="/collections">Collections</NavLink>
+        <NavLink to="/" className="logo" aria-label={t('bookmarks, accueil')}><Ribbon /></NavLink>
+        <nav className="nav" aria-label={t('Navigation principale')}>
+          <NavLink to="/" end>{t('Signets')}</NavLink>
+          <NavLink to="/collections">{t('Collections')}</NavLink>
         </nav>
         <UserMenu user={user} onLogout={logout} />
       </header>
       {offline && (
         <div className="offline-bar" role="status">
-          <strong>Hors ligne</strong>
-          <span>{syncedAt ? `Copie du ${new Date(syncedAt).toLocaleString('fr-CA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : 'Aucune copie enregistrée sur cet appareil'}</span>
-          {pendingCount > 0 && <span>{pendingCount} ajout{pendingCount > 1 ? 's' : ''} en attente</span>}
+          <strong>{t('Hors ligne')}</strong>
+          <span>{syncedAt ? t('Copie du {date}', { date: new Date(syncedAt).toLocaleString(locale(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) }) : t('Aucune copie enregistrée sur cet appareil')}</span>
+          {pendingCount > 0 && <span>{plural(pendingCount, 'ajout en attente', 'ajouts en attente')}</span>}
         </div>
       )}
       <Outlet />

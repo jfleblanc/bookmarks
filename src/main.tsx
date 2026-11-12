@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { AuthProvider, OfflineProvider, ToastProvider } from './context';
+import { LangGate } from './LangGate';
 import './styles.css';
 
 createRoot(document.getElementById('root')!).render(
@@ -11,7 +12,9 @@ createRoot(document.getElementById('root')!).render(
       <AuthProvider>
         <OfflineProvider>
           <ToastProvider>
-            <App />
+            <LangGate>
+              <App />
+            </LangGate>
           </ToastProvider>
         </OfflineProvider>
       </AuthProvider>

@@ -8,6 +8,9 @@ import * as tokens from './tokens';
 import { sync } from './sync';
 import { capture } from './capture';
 import { HttpError, json, errorResponse } from './util';
+import { requestLang } from './i18n';
+
+const safePrefs = (p: string): Record<string, unknown> => { try { return JSON.parse(p || '{}'); } catch { return {}; } };
 
 const api = new Router<Ctx>()
   // Compte et connexion
@@ -95,7 +98,7 @@ async function handleApi(req: Request, env: Env, ctxExec: ExecutionContext): Pro
     if (ctx.via === 'token' && !TOKEN_ROUTES.has(m.route)) throw new HttpError(403, 'token_scope', 'Action non permise avec un jeton d’extension.');
     res = await m.handler(ctx, m.params);
   } catch (e) {
-    res = errorResponse(e);
+    res = errorResponse(e, requestLang(req, ctx.user?.prefs ? safePrefs(ctx.user.prefs).lang : undefined));
   }
   const headers = new Headers(res.headers);
   for (const [k, v] of Object.entries(SECURITY_HEADERS)) headers.set(k, v);

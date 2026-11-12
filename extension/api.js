@@ -1,3 +1,4 @@
+import { t as tr, LANG } from './i18n.js';
 // Adresse de votre app bookmarks. Si vous la changez, changez aussi « host_permissions » dans manifest.json.
 export const SERVER = 'https://bookmarks.jfleblanc.com';
 
@@ -24,20 +25,20 @@ export class ApiError extends Error {
 
 export async function call(method, path, body, token) {
   const t = token || (await getAuth())?.token;
-  if (!t) throw new ApiError(401, 'no_token', 'Extension non connectée.');
+  if (!t) throw new ApiError(401, 'no_token', tr('Extension non connectée.'));
   let res;
   try {
     res = await fetch(SERVER + path, {
       method,
-      headers: { authorization: `Bearer ${t}`, ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
+      headers: { authorization: `Bearer ${t}`, 'x-lang': LANG, ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
       body: body !== undefined ? JSON.stringify(body) : undefined,
       credentials: 'omit'
     });
   } catch {
-    throw new ApiError(0, 'network', 'bookmarks est injoignable. Vérifiez votre connexion.');
+    throw new ApiError(0, 'network', tr('bookmarks est injoignable. Vérifiez votre connexion.'));
   }
   const data = (res.headers.get('content-type') || '').includes('json') ? await res.json() : null;
-  if (!res.ok) throw new ApiError(res.status, data?.error || 'error', data?.message || 'Une erreur est survenue.', data);
+  if (!res.ok) throw new ApiError(res.status, data?.error || 'error', data?.message || tr('Une erreur est survenue.'), data);
   return data;
 }
 

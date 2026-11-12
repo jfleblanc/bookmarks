@@ -243,7 +243,7 @@ export async function update(ctx: Ctx, p: Record<string, string>) {
     if (norm !== b.norm_url) {
       const dup = await ctx.env.DB.prepare(`SELECT id, title, domain, deleted_at FROM bookmarks WHERE user_id = ? AND norm_url = ? AND id != ?`)
         .bind(b.user_id, norm, b.id).first<{ id: string; title: string | null; domain: string; deleted_at: number | null }>();
-      if (dup && !dup.deleted_at) throw new HttpError(409, 'duplicate', `Cette adresse est déjà utilisée par « ${dup.title || dup.domain} ».`, { bookmark: dup });
+      if (dup && !dup.deleted_at) throw new HttpError(409, 'duplicate', 'Cette adresse est déjà utilisée par « {title} ».', { bookmark: dup }, { title: dup.title || dup.domain });
       if (dup) await purgeDeleted(ctx.env, b.user_id, [dup.id]);
       stmts.push(ctx.env.DB.prepare(`UPDATE bookmarks SET url = ?, norm_url = ?, domain = ?, status = 'processing', error = NULL WHERE id = ?`)
         .bind(u.href, norm, domainOf(u), b.id));

@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { api, fullDate, plural, type Bookmark } from '../api';
 import { Ribbon } from '../components/Ribbon';
 import { BookmarkCard, Masonry } from '../components/Cards';
+import { t } from '../i18n';
 
 /* Page publique d'une collection partagée : lecture seule, toujours en couleur, sans compte */
 export default function PublicCollectionView() {
@@ -24,22 +25,22 @@ export default function PublicCollectionView() {
       <div className="logo"><Ribbon /></div>
       {gone ? (
         <div className="narrow">
-          <h1>Ce lien n’est plus actif</h1>
-          <p>La personne qui a partagé cette collection l’a rendue privée ou a changé son lien.</p>
+          <h1>{t('Ce lien n’est plus actif')}</h1>
+          <p>{t('La personne qui a partagé cette collection l’a rendue privée ou a changé son lien.')}</p>
         </div>
-      ) : !data ? <p className="note pad">Chargement…</p> : (
+      ) : !data ? <p className="note pad">{t('Chargement…')}</p> : (
         <>
           <div className="pub-head">
-            <p className="eyebrow">Collection partagée · {plural(data.collection.count, 'site', 'sites')} · mise à jour le {fullDate(data.collection.updatedAt)}</p>
+            <p className="eyebrow">{t('Collection partagée')} · {plural(data.collection.count, 'site', 'sites')} · {t('mise à jour le {date}', { date: fullDate(data.collection.updatedAt) })}</p>
             <h1>{data.collection.title}</h1>
             {data.collection.description && <p className="cdesc">{data.collection.description}</p>}
           </div>
           <div className="cgrid-wrap">
             {data.items.length
               ? <Masonry items={data.items} render={b => <BookmarkCard key={b.id} item={b} mode="public" />} />
-              : <div className="empty"><strong>Cette collection est vide pour l’instant.</strong></div>}
+              : <div className="empty"><strong>{t('Cette collection est vide pour l’instant.')}</strong></div>}
           </div>
-          <p className="pub-foot">Partagé avec bookmarks</p>
+          <p className="pub-foot">{t('Partagé avec bookmarks')}</p>
         </>
       )}
     </div>

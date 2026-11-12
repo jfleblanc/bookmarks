@@ -5,6 +5,7 @@ import { useAuth, useOffline, useToast } from '../context';
 import { loadSnapshot } from '../offline';
 import { generatedPreview } from '../preview';
 import { CollectionFormModal } from '../components/Dialogs';
+import { t } from '../i18n';
 
 export default function CollectionsView() {
   const [list, setList] = useState<Collection[] | null>(null);
@@ -21,20 +22,20 @@ export default function CollectionsView() {
       .catch(async e => {
         const s = isNetworkError(e) ? await loadSnapshot(user?.id) : null;
         if (s) setList(s.collections);
-        else setError(e instanceof ApiError ? e.message : 'Chargement impossible.');
+        else setError(e instanceof ApiError ? e.message : t('Chargement impossible.'));
       });
   }, [user?.id, offline]);
 
   return (
     <section>
       <div className="vhead">
-        <h1>Collections</h1>
-        {!offline && <button className="btn btn-primary" type="button" onClick={() => setCreating(true)}>Nouvelle collection</button>}
+        <h1>{t('Collections')}</h1>
+        {!offline && <button className="btn btn-primary" type="button" onClick={() => setCreating(true)}>{t('Nouvelle collection')}</button>}
       </div>
-      {error ? <div className="empty"><strong>Chargement impossible</strong>{error}</div>
-        : list === null ? <p className="note pad">Chargement…</p>
+      {error ? <div className="empty"><strong>{t('Chargement impossible')}</strong>{error}</div>
+        : list === null ? <p className="note pad">{t('Chargement…')}</p>
         : !list.length ? (
-          <div className="empty"><strong>Aucune collection</strong>Regroupez des signets dans une collection pour les partager avec un lien. Créez-en une ici, ou utilisez « Sélectionner » dans vos signets.</div>
+          <div className="empty"><strong>{t('Aucune collection')}</strong>{t('Regroupez des signets dans une collection pour les partager avec un lien. Créez-en une ici, ou utilisez « Sélectionner » dans vos signets.')}</div>
         ) : (
           <div className="coll-grid">
             {list.map(c => (
@@ -46,8 +47,8 @@ export default function CollectionsView() {
                 {c.description && <p className="clamp">{c.description}</p>}
                 <span className="mrow">
                   <span>{plural(c.count, 'signet', 'signets')}</span>
-                  <span className={`pill${c.shared ? ' ok' : ''}`}>{c.shared ? 'partagée' : 'privée'}</span>
-                  <span>modifiée {shortDate(c.updatedAt)}</span>
+                  <span className={`pill${c.shared ? ' ok' : ''}`}>{c.shared ? t('partagée') : t('privée')}</span>
+                  <span>{t('modifiée {date}', { date: shortDate(c.updatedAt) })}</span>
                 </span>
               </Link>
             ))}
@@ -56,7 +57,7 @@ export default function CollectionsView() {
       {creating && (
         <CollectionFormModal
           onClose={() => setCreating(false)}
-          onSaved={c => { navigate(`/collections/${c.id}`); toast('Collection créée. Ajoutez-y des signets.'); }}
+          onSaved={c => { navigate(`/collections/${c.id}`); toast(t('Collection créée. Ajoutez-y des signets.')); }}
         />
       )}
     </section>

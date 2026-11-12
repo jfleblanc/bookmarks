@@ -1,3 +1,4 @@
+import { requestLang, type Lang } from './i18n';
 import type { Env, User } from './env';
 import { HttpError, json, readJson, normalizeEmail, randomToken, sha256, newId, now, DAY, getCookie, cookie } from './util';
 
@@ -94,19 +95,35 @@ export async function sendMail(env: Env, to: string, subject: string, html: stri
   if (!res.ok) console.error('Resend a refusé le courriel', res.status, await res.text());
 }
 
-function loginEmail(link: string, code: string) {
+const MAIL = {
+  fr: {
+    subject: (code: string) => `${code} : votre code de connexion à bookmarks`,
+    hello: 'Bonjour,', codeIs: 'Votre code de connexion à', type: 'Tapez-le dans la fenêtre où vous l’avez demandé.',
+    orLink: 'Ou cliquez ce lien :', orDevice: 'Ou, sur cet appareil :', button: 'Me connecter',
+    expires: (m: number) => `Le code et le lien fonctionnent une seule fois et expirent dans ${m} minutes.`, ignore: 'Si vous n’avez rien demandé, ignorez ce courriel.'
+  },
+  en: {
+    subject: (code: string) => `${code} is your bookmarks sign-in code`,
+    hello: 'Hello,', codeIs: 'Your sign-in code for', type: 'Type it in the window where you asked for it.',
+    orLink: 'Or click this link:', orDevice: 'Or, on this device:', button: 'Sign me in',
+    expires: (m: number) => `The code and link work only once and expire in ${m} minutes.`, ignore: 'If you didn’t ask for this, ignore this email.'
+  }
+};
+
+function loginEmail(link: string, code: string, lang: Lang) {
+  const m = MAIL[lang];
   const spaced = `${code.slice(0, 3)} ${code.slice(3)}`;
-  const text = `Bonjour,\n\nVotre code de connexion à bookmarks : ${spaced}\nTapez-le dans la fenêtre où vous l’avez demandé.\n\nOu cliquez ce lien : ${link}\n\nLe code et le lien fonctionnent une seule fois et expirent dans ${LOGIN_LINK_MINUTES} minutes.\nSi vous n’avez rien demandé, ignorez ce courriel.`;
+  const text = `${m.hello}\n\n${m.codeIs} bookmarks : ${spaced}\n${m.type}\n\n${m.orLink} ${link}\n\n${m.expires(LOGIN_LINK_MINUTES)}\n${m.ignore}`;
   const html = `<div style="font-family:Helvetica,Arial,sans-serif;font-size:16px;line-height:1.5;color:#0d0d0d;max-width:480px">
-    <p>Bonjour,</p>
-    <p>Votre code de connexion à <strong>bookmarks</strong> :</p>
+    <p>${m.hello}</p>
+    <p>${m.codeIs} <strong>bookmarks</strong>${lang === 'fr' ? ' :' : ':'}</p>
     <p style="font-family:Menlo,Consolas,monospace;font-size:32px;font-weight:700;letter-spacing:6px;margin:8px 0 4px">${spaced}</p>
-    <p style="color:#5e5e5e;font-size:14px;margin-top:0">Tapez-le dans la fenêtre où vous l’avez demandé.</p>
-    <p>Ou, sur cet appareil :</p>
-    <p><a href="${link}" style="display:inline-block;background:#0d0d0d;color:#ffffff;padding:12px 20px;text-decoration:none;font-weight:600">Me connecter</a></p>
-    <p style="color:#5e5e5e;font-size:14px">Le code et le lien fonctionnent une seule fois et expirent dans ${LOGIN_LINK_MINUTES} minutes. Si vous n’avez rien demandé, ignorez ce courriel.</p>
+    <p style="color:#5e5e5e;font-size:14px;margin-top:0">${m.type}</p>
+    <p>${m.orDevice}</p>
+    <p><a href="${link}" style="display:inline-block;background:#0d0d0d;color:#ffffff;padding:12px 20px;text-decoration:none;font-weight:600">${m.button}</a></p>
+    <p style="color:#5e5e5e;font-size:14px">${m.expires(LOGIN_LINK_MINUTES)} ${m.ignore}</p>
   </div>`;
-  return { text, html };
+  return { text, html, subject: m.subject(code) };
 }
 
 /** Code à 6 chiffres, tiré au hasard de façon sûre */
@@ -148,8 +165,10 @@ export async function requestLogin(ctx: Ctx) {
       await env.DB.prepare(`INSERT INTO login_tokens (token_hash, user_id, created_at, expires_at, code_hash) VALUES (?, ?, ?, ?, ?)`)
         .bind(await sha256(token), user.id, now(), now() + LOGIN_LINK_MINUTES * 60_000, await codeHash(user.id, code)).run();
       const link = `${appUrl(ctx)}/connexion/lien?jeton=${encodeURIComponent(token)}`;
-      const { text, html } = loginEmail(link, code);
-      ctx.waitUntil(sendMail(env, email, `${code} : votre code de connexion à bookmarks`, html, text));
+      let prefs: Record<string, unknown> = {};
+      try { prefs = JSON.parse(user.prefs || '{}'); } catch {}
+      const { text, html, subject } = loginEmail(link, code, requestLang(ctx.req, prefs.lang));
+      ctx.waitUntil(sendMail(env, email, subject, html, text));
       if (env.DEV_MODE === '1') { devLink = link; devCode = code; }
     }
   }
@@ -227,6 +246,7 @@ export async function updatePrefs(ctx: Ctx) {
   try { prefs = JSON.parse(user.prefs || '{}'); } catch {}
   if ('bw' in body) prefs.bw = !!body.bw;
   if ('hoverColor' in body) prefs.hoverColor = !!body.hoverColor;
+  if ('lang' in body) { if (body.lang === 'fr' || body.lang === 'en') prefs.lang = body.lang; else delete prefs.lang; }
   await ctx.env.DB.prepare(`UPDATE users SET prefs = ? WHERE id = ?`).bind(JSON.stringify(prefs), user.id).run();
   return json({ prefs });
 }

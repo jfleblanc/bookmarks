@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api';
 import { useAuth } from '../context';
 import { Ribbon } from '../components/Ribbon';
+import { t } from '../i18n';
 
 /*
   Page ouverte depuis le courriel. La connexion se fait avec un bouton (et non à l'ouverture de la page)
@@ -14,7 +15,7 @@ export default function LoginLinkView() {
   const token = params.get('jeton') || '';
   const { refresh } = useAuth();
   const navigate = useNavigate();
-  const [err, setErr] = useState(token ? '' : 'Ce lien de connexion est incomplet.');
+  const [err, setErr] = useState(() => (token ? '' : t('Ce lien de connexion est incomplet.')));
   const [busy, setBusy] = useState(false);
 
   async function confirm() {
@@ -26,7 +27,7 @@ export default function LoginLinkView() {
       try { next = sessionStorage.getItem('bm_next') || '/'; sessionStorage.removeItem('bm_next'); } catch {}
       navigate(next.startsWith('/') ? next : '/', { replace: true });
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : 'Connexion impossible.');
+      setErr(e instanceof ApiError ? e.message : t('Connexion impossible.'));
     } finally { setBusy(false); }
   }
 
@@ -36,15 +37,15 @@ export default function LoginLinkView() {
       <div className="narrow">
         {err ? (
           <>
-            <h1>Lien invalide</h1>
+            <h1>{t('Lien invalide')}</h1>
             <p>{err}</p>
-            <Link className="btn btn-primary start" to="/connexion">Demander un nouveau lien</Link>
+            <Link className="btn btn-primary start" to="/connexion">{t('Demander un nouveau lien')}</Link>
           </>
         ) : (
           <>
-            <h1>Connexion</h1>
-            <p>Cliquez pour ouvrir votre session sur cet appareil.</p>
-            <button type="button" className="btn btn-primary start" onClick={confirm} disabled={busy}>{busy ? 'Connexion…' : 'Me connecter'}</button>
+            <h1>{t('Connexion')}</h1>
+            <p>{t('Cliquez pour ouvrir votre session sur cet appareil.')}</p>
+            <button type="button" className="btn btn-primary start" onClick={confirm} disabled={busy}>{busy ? t('Connexion…') : t('Me connecter')}</button>
           </>
         )}
       </div>

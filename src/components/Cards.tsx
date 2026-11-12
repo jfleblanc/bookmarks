@@ -3,6 +3,7 @@ import { shortDate, type Bookmark } from '../api';
 import { useOffline } from '../context';
 import { getThumbMode } from '../offline';
 import { generatedPreview } from '../preview';
+import { t } from '../i18n';
 
 const favColor = (d: string) => {
   let h = 0;
@@ -37,20 +38,20 @@ export function Thumb({ item }: { item: Pick<Bookmark, 'thumbUrl' | 'thumbRatio'
   const { offline } = useOffline();
   const box = { aspectRatio: `1 / ${ratio}` };
   if (item.status === 'processing') {
-    return <div className="thumb loading" style={box}><Spinner label="Capture en cours" /></div>;
+    return <div className="thumb loading" style={box}><Spinner label={t('Capture en cours')} /></div>;
   }
   // Aperçu généré : pas de capture, capture introuvable (hors ligne), ou réglage « aperçus » hors ligne
   if (!item.thumbUrl || failed || item.status === 'pending' || (offline && getThumbMode() === 'previews')) {
     return (
       <a className="thumb" href={item.url} target="_blank" rel="noopener noreferrer" tabIndex={-1} aria-hidden="true" style={box}>
         <img src={generatedPreview(item.domain, ratio)} alt="" className="in" width={400} height={Math.round(400 * ratio)} />
-        {item.status === 'pending' && <span className="thumb-flag">en attente de connexion</span>}
+        {item.status === 'pending' && <span className="thumb-flag">{t('en attente de connexion')}</span>}
       </a>
     );
   }
   return (
     <a className={`thumb${loaded ? '' : ' loading'}`} href={item.url} target="_blank" rel="noopener noreferrer" tabIndex={-1} aria-hidden="true" style={box}>
-      {!loaded && <Spinner label="Chargement de la vignette" />}
+      {!loaded && <Spinner label={t('Chargement de la vignette')} />}
       <img ref={img} src={item.thumbUrl} alt="" loading="lazy" width={400} height={Math.round(400 * ratio)}
         className={loaded ? 'in' : ''} onLoad={() => setLoaded(true)} onError={() => setFailed(true)} />
     </a>
@@ -79,8 +80,8 @@ export function BookmarkCard({ item, mode, activeTags, onTag, selecting, picked,
       onClickCapture={selecting ? e => { e.preventDefault(); e.stopPropagation(); onPick?.(); } : undefined}
     >
       {selecting && (
-        <label className="pick" title="Sélectionner">
-          <input type="checkbox" checked={!!picked} readOnly aria-label={`Sélectionner ${item.title || item.domain}`} />
+        <label className="pick" title={t('Sélectionner')}>
+          <input type="checkbox" checked={!!picked} readOnly aria-label={t('Sélectionner {title}', { title: item.title || item.domain })} />
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2.4" aria-hidden="true"><path d="M2.5 7.5l3 3 6-7" /></svg>
         </label>
       )}
@@ -91,17 +92,17 @@ export function BookmarkCard({ item, mode, activeTags, onTag, selecting, picked,
       </div>
       <h3 className="title">
         {processing && !item.title
-          ? <span className="pending">Extraction du titre…</span>
+          ? <span className="pending">{t('Extraction du titre…')}</span>
           : <a href={item.url} target="_blank" rel="noopener noreferrer">{item.title || item.domain}</a>}
       </h3>
-      {item.status === 'error' && <p className="card-err">{item.error || 'Capture impossible.'}</p>}
+      {item.status === 'error' && <p className="card-err">{item.error || t('Capture impossible.')}</p>}
       {item.note && mode !== 'public' && <p className="card-note">{item.note}</p>}
       {item.tags.length > 0 && (
         <div className="tags">
-          {item.tags.map(t =>
+          {item.tags.map(tag =>
             onTag
-              ? <button type="button" key={t} className={`tag${activeTags?.has(t) ? ' on' : ''}`} onClick={() => onTag(t)}>#{t}</button>
-              : <span key={t} className="tag">#{t}</span>
+              ? <button type="button" key={tag} className={`tag${activeTags?.has(tag) ? ' on' : ''}`} onClick={() => onTag(tag)}>#{tag}</button>
+              : <span key={tag} className="tag">#{tag}</span>
           )}
         </div>
       )}

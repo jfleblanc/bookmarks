@@ -1,7 +1,10 @@
 import { useEffect, useState } from 'react';
 import { api, type Bookmark, type User } from '../../api';
 import { useAuth, useToast } from '../../context';
+import { browserLang, setLang, t, type Lang } from '../../i18n';
 import { Subhead } from './SettingsLayout';
+
+type Prefs = User['prefs'] & { lang?: Lang | null };
 
 export default function AppearancePage() {
   const { user, setUser } = useAuth();
@@ -9,22 +12,29 @@ export default function AppearancePage() {
   const [sample, setSample] = useState<Bookmark | null>(null);
   const bw = !!user?.prefs?.bw;
   const hoverColor = user?.prefs?.hoverColor !== false;
+  const lang = (user?.prefs as Prefs | undefined)?.lang ?? 'auto';
 
   useEffect(() => {
     api.get<{ items: Bookmark[] }>('/api/bookmarks?limit=10').then(r => setSample(r.items.find(i => i.thumbUrl) || null)).catch(() => {});
   }, []);
 
-  async function save(change: Partial<User['prefs']>) {
+  async function save(change: Partial<Prefs>) {
     if (!user) return;
-    const prefs = { bw, hoverColor, ...change };
+    const prefs = { ...user.prefs, bw, hoverColor, ...change };
     setUser({ ...user, prefs }); // affichage immédiat
     try {
       const r = await api.patch<{ prefs: User['prefs'] }>('/api/me/prefs', prefs);
       setUser({ ...user, prefs: r.prefs });
     } catch {
       setUser(user);
-      toast('Le réglage n’a pas pu être enregistré.');
+      toast(t('Le réglage n’a pas pu être enregistré.'));
     }
+  }
+
+  function chooseLang(value: string) {
+    const l = value === 'fr' || value === 'en' ? value : null;
+    save({ lang: l });
+    setLang(l ?? browserLang());
   }
 
   const preview = (gray: boolean) => (
@@ -35,25 +45,37 @@ export default function AppearancePage() {
 
   return (
     <>
-      <Subhead title="Vignettes">
-        Une préférence de votre compte, sur tous vos appareils. Elle change seulement ce que vous voyez : les collections partagées s’affichent toujours en couleur pour les visiteurs.
+      <Subhead title={t('Langue')}>
+        {t('La langue de l’interface, sur tous vos appareils. Par défaut, celle de votre navigateur.')}
       </Subhead>
-      <div className="choice-grid" role="radiogroup" aria-label="Couleur des vignettes">
+      <div className="form-group">
+        <label htmlFor="apLang">{t('Langue de l’interface')}</label>
+        <select id="apLang" className="form-control" style={{ maxWidth: 280 }} value={lang} onChange={e => chooseLang(e.target.value)}>
+          <option value="auto">{t('Selon le navigateur ({lang})', { lang: browserLang() === 'fr' ? 'Français' : 'English' })}</option>
+          <option value="fr">Français</option>
+          <option value="en">English</option>
+        </select>
+      </div>
+
+      <Subhead title={t('Vignettes')}>
+        {t('Une préférence de votre compte, sur tous vos appareils. Elle change seulement ce que vous voyez : les collections partagées s’affichent toujours en couleur pour les visiteurs.')}
+      </Subhead>
+      <div className="choice-grid" role="radiogroup" aria-label={t('Couleur des vignettes')}>
         <button type="button" role="radio" aria-checked={!bw} className="choice" onClick={() => bw && save({ bw: false })}>
           {preview(false)}
-          <span className="choice-label"><span className="radio-dot" />Couleur</span>
+          <span className="choice-label"><span className="radio-dot" />{t('Couleur')}</span>
         </button>
         <button type="button" role="radio" aria-checked={bw} className="choice" onClick={() => !bw && save({ bw: true })}>
           {preview(true)}
-          <span className="choice-label"><span className="radio-dot" />Noir et blanc</span>
+          <span className="choice-label"><span className="radio-dot" />{t('Noir et blanc')}</span>
         </button>
       </div>
 
       <label className={`check${bw ? '' : ' disabled'}`}>
         <input type="checkbox" checked={bw && hoverColor} disabled={!bw} onChange={e => save({ hoverColor: e.target.checked })} />
         <span>
-          <strong>Couleur au survol</strong>
-          <small>{bw ? 'La vignette reprend ses couleurs quand vous passez la souris sur la carte ou que vous y naviguez au clavier.' : 'Disponible avec les vignettes en noir et blanc.'}</small>
+          <strong>{t('Couleur au survol')}</strong>
+          <small>{bw ? t('La vignette reprend ses couleurs quand vous passez la souris sur la carte ou que vous y naviguez au clavier.') : t('Disponible avec les vignettes en noir et blanc.')}</small>
         </span>
       </label>
     </>

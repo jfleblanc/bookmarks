@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { fold, normTag, type Tag } from '../api';
+import { t } from '../i18n';
 
 interface Props {
   id: string;
@@ -32,8 +33,8 @@ export function TagInput({ id, value, onChange, known, placeholder = '#…', onS
   function add(raw: string) {
     const next = [...value];
     raw.split(',').forEach(p => {
-      const t = normTag(p);
-      if (t && !next.includes(t) && next.length < 20) next.push(t);
+      const tag = normTag(p);
+      if (tag && !next.includes(tag) && next.length < 20) next.push(tag);
     });
     onChange(next);
     setText('');
@@ -44,10 +45,10 @@ export function TagInput({ id, value, onChange, known, placeholder = '#…', onS
 
   return (
     <div className="ti" onClick={e => { if (e.target === e.currentTarget) input.current?.focus(); }}>
-      {value.map((t, i) => (
-        <span className="chip" key={t}>
-          #{t}
-          <button type="button" aria-label={`Retirer ${t}`} onClick={() => onChange(value.filter((_, j) => j !== i))}>
+      {value.map((tag, i) => (
+        <span className="chip" key={tag}>
+          #{tag}
+          <button type="button" aria-label={t('Retirer {tag}', { tag })} onClick={() => onChange(value.filter((_, j) => j !== i))}>
             <svg width="9" height="9" viewBox="0 0 10 10" stroke="currentColor" strokeWidth="1.6" aria-hidden="true"><path d="M2 2l6 6M8 2L2 8" /></svg>
           </button>
         </span>
@@ -58,7 +59,7 @@ export function TagInput({ id, value, onChange, known, placeholder = '#…', onS
         value={text}
         autoComplete="off"
         placeholder={value.length ? '' : placeholder}
-        aria-label="Tags"
+        aria-label={t('Tags')}
         role="combobox"
         aria-expanded={show}
         aria-autocomplete="list"
@@ -89,7 +90,7 @@ export function TagInput({ id, value, onChange, known, placeholder = '#…', onS
               aria-selected={i === active}
               onMouseDown={e => { e.preventDefault(); add(o.t); }}
             >
-              {o.create ? <span className="create">Créer #{o.t}</span> : <><span>#{o.t}</span><span className="n">{o.n}</span></>}
+              {o.create ? <span className="create">{t('Créer #{tag}', { tag: o.t })}</span> : <><span>#{o.t}</span><span className="n">{o.n}</span></>}
             </li>
           ))}
         </ul>

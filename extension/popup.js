@@ -1,5 +1,7 @@
 import { SERVER, call, getAuth, setAuth, clearAuth, isSavable, isYouTubeVideo, ApiError } from './api.js';
 import { captureTab } from './capture.js';
+import { t as tr, localizePage } from './i18n.js';
+localizePage();
 
 const $ = id => document.getElementById(id);
 const show = id => ['setup', 'main', 'nope'].forEach(s => ($(s).hidden = s !== id));
@@ -40,7 +42,7 @@ $('setupForm').addEventListener('submit', async e => {
   const token = $('token').value.trim();
   $('setupErr').hidden = true;
   if (!/^bm_[A-Za-z0-9_-]{20,}$/.test(token)) {
-    $('setupErr').textContent = 'Ce n’est pas un jeton bookmarks. Il commence par « bm_ ».';
+    $('setupErr').textContent = tr('Ce n’est pas un jeton bookmarks. Il commence par « bm_ ».');
     $('setupErr').hidden = false;
     return;
   }
@@ -49,7 +51,7 @@ $('setupForm').addEventListener('submit', async e => {
     await setAuth(token, user.email);
     start();
   } catch (err) {
-    $('setupErr').textContent = err.status === 401 ? 'Ce jeton n’est pas valide ou a été révoqué. Créez-en un nouveau dans Réglages.' : err.message;
+    $('setupErr').textContent = err.status === 401 ? tr('Ce jeton n’est pas valide ou a été révoqué. Créez-en un nouveau dans Réglages.') : err.message;
     $('setupErr').hidden = false;
   }
 });
@@ -80,14 +82,14 @@ async function showMain() {
       existing = look.item;
       tags = [...existing.tags];
       $('note').value = existing.note || '';
-      setState('Déjà dans vos signets. Vous pouvez compléter ses tags et sa note.');
-      $('submit').textContent = 'Enregistrer';
+      setState(tr('Déjà dans vos signets. Vous pouvez compléter ses tags et sa note.'));
+      $('submit').textContent = tr('Enregistrer');
       $('shot').options[0].hidden = false;
       $('shot').value = 'keep';
       drawChips();
     }
   } catch (err) {
-    if (err.status === 401) { await clearAuth(); return showSetup('Ce jeton ne fonctionne plus. Collez un nouveau jeton.'); }
+    if (err.status === 401) { await clearAuth(); return showSetup(tr('Ce jeton ne fonctionne plus. Collez un nouveau jeton.')); }
     showError(err.message);
   }
 }
@@ -127,10 +129,10 @@ $('addForm').addEventListener('submit', async e => {
     }
     if (collectionId) await call('POST', `/api/collections/${collectionId}/items`, { bookmarkIds: [id] });
     $('addForm').hidden = true;
-    setState(existing ? 'Signet mis à jour ✓' : (thumb ? 'Ajouté à bookmarks ✓' : 'Ajouté à bookmarks ✓ La capture se fait en arrière-plan.'), true);
+    setState(existing ? tr('Signet mis à jour ✓') : (thumb ? tr('Ajouté à bookmarks ✓') : tr('Ajouté à bookmarks ✓ La capture se fait en arrière-plan.')), true);
     setTimeout(() => window.close(), 1600);
   } catch (err) {
-    showError(err instanceof ApiError && err.status === 401 ? 'Ce jeton ne fonctionne plus. Déconnectez puis reconnectez l’extension.' : err.message);
+    showError(err instanceof ApiError && err.status === 401 ? tr('Ce jeton ne fonctionne plus. Déconnectez puis reconnectez l’extension.') : err.message);
     $('submit').disabled = false;
   }
 });
@@ -155,7 +157,7 @@ function drawChips() {
     const x = document.createElement('button');
     x.type = 'button';
     x.textContent = '×';
-    x.setAttribute('aria-label', `Retirer ${t}`);
+    x.setAttribute('aria-label', tr('Retirer {tag}', { tag: t }));
     x.addEventListener('click', () => { tags.splice(i, 1); drawChips(); input.focus(); });
     chip.append(x);
     $('chips').append(chip);
@@ -187,7 +189,7 @@ function suggest() {
     const li = document.createElement('li');
     li.setAttribute('role', 'option');
     li.setAttribute('aria-selected', String(i === active));
-    if (o.create) { const s = document.createElement('span'); s.className = 'create'; s.textContent = `Créer #${o.t}`; li.append(s); }
+    if (o.create) { const s = document.createElement('span'); s.className = 'create'; s.textContent = tr('Créer #{tag}', { tag: o.t }); li.append(s); }
     else { const a = document.createElement('span'); a.textContent = '#' + o.t; const n = document.createElement('span'); n.className = 'n'; n.textContent = o.n; li.append(a, n); }
     li.addEventListener('mousedown', e => { e.preventDefault(); add(o.t); });
     sugg.append(li);

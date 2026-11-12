@@ -1,7 +1,9 @@
+import { tr, type Lang } from './i18n';
 /* Petits utilitaires partagés par l'API */
 
 export class HttpError extends Error {
-  constructor(public status: number, public code: string, message?: string, public extra?: Record<string, unknown>) {
+  /** message : texte français, traduit à la réponse selon la langue (voir i18n.ts) ; {nom} remplacé par vars */
+  constructor(public status: number, public code: string, message?: string, public extra?: Record<string, unknown>, public vars?: Record<string, unknown>) {
     super(message || code);
   }
 }
@@ -13,10 +15,10 @@ export function json(data: unknown, status = 200, headers: Record<string, string
   });
 }
 
-export function errorResponse(e: unknown): Response {
-  if (e instanceof HttpError) return json({ error: e.code, message: e.message, ...(e.extra || {}) }, e.status);
+export function errorResponse(e: unknown, lang: Lang = 'fr'): Response {
+  if (e instanceof HttpError) return json({ error: e.code, message: tr(lang, e.message, e.vars), ...(e.extra || {}) }, e.status);
   console.error(e);
-  return json({ error: 'server_error', message: 'Une erreur inattendue est survenue.' }, 500);
+  return json({ error: 'server_error', message: tr(lang, 'Une erreur inattendue est survenue.') }, 500);
 }
 
 export const now = () => Date.now();

@@ -2,6 +2,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context';
 import { Avatar, Icon, type IconName } from '../../components/Icons';
+import { t } from '../../i18n';
 
 /** Réglages organisés comme ceux de GitHub : en-tête du compte, menu à gauche, une page par sujet */
 export default function SettingsLayout() {
@@ -23,20 +24,20 @@ export default function SettingsLayout() {
         <Avatar email={user.email} size="lg" />
         <div>
           <h1>{user.email}</h1>
-          <p>Votre compte {user.role === 'admin' ? 'administrateur' : 'personnel'}</p>
+          <p>{user.role === 'admin' ? t('Votre compte administrateur') : t('Votre compte personnel')}</p>
         </div>
       </header>
       <div className="settings-grid">
-        <nav ref={nav} className="settings-nav" aria-label="Réglages">
-          {item('/reglages', 'person', 'Compte', true)}
-          {item('/reglages/apparence', 'brush', 'Apparence')}
-          <span className="nav-group">Accès</span>
-          {item('/reglages/extension', 'key', 'Extension et jetons')}
-          <span className="nav-group">Cet appareil</span>
-          {item('/reglages/hors-ligne', 'offline', 'Hors ligne')}
+        <nav ref={nav} className="settings-nav" aria-label={t('Réglages')}>
+          {item('/reglages', 'person', t('Compte'), true)}
+          {item('/reglages/apparence', 'brush', t('Apparence'))}
+          <span className="nav-group">{t('Accès')}</span>
+          {item('/reglages/extension', 'key', t('Extension et jetons'))}
+          <span className="nav-group">{t('Cet appareil')}</span>
+          {item('/reglages/hors-ligne', 'offline', t('Hors ligne'))}
           {user.role === 'admin' && <>
-            <span className="nav-group">Administration</span>
-            {item('/reglages/membres', 'people', 'Membres et invitations')}
+            <span className="nav-group">{t('Administration')}</span>
+            {item('/reglages/membres', 'people', t('Membres et invitations'))}
           </>}
         </nav>
         <div className="settings-main"><Outlet /></div>
