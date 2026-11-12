@@ -6,8 +6,12 @@ import { UserMenu } from './components/UserMenu';
 import BookmarksView from './views/BookmarksView';
 import CollectionsView from './views/CollectionsView';
 import CollectionView from './views/CollectionView';
-import AdminView from './views/AdminView';
-import SettingsView from './views/SettingsView';
+import SettingsLayout from './views/settings/SettingsLayout';
+import AccountPage from './views/settings/AccountPage';
+import AppearancePage from './views/settings/AppearancePage';
+import ExtensionPage from './views/settings/ExtensionPage';
+import OfflinePage from './views/settings/OfflinePage';
+import MembersPage from './views/settings/MembersPage';
 import LoginView from './views/LoginView';
 import LoginLinkView from './views/LoginLinkView';
 import InviteView from './views/InviteView';
@@ -26,8 +30,15 @@ export default function App() {
         <Route index element={<BookmarksView />} />
         <Route path="/collections" element={<CollectionsView />} />
         <Route path="/collections/:id" element={<CollectionView />} />
-        <Route path="/admin" element={<AdminOnly><AdminView /></AdminOnly>} />
-        <Route path="/reglages" element={<SettingsView />} />
+        <Route path="/admin" element={<Navigate to="/reglages/membres" replace />} />
+        <Route path="/reglages" element={<SettingsLayout />}>
+          <Route index element={<AccountPage />} />
+          <Route path="apparence" element={<AppearancePage />} />
+          <Route path="extension" element={<ExtensionPage />} />
+          <Route path="hors-ligne" element={<OfflinePage />} />
+          <Route path="membres" element={<AdminOnly><MembersPage /></AdminOnly>} />
+          <Route path="*" element={<Navigate to="/reglages" replace />} />
+        </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
