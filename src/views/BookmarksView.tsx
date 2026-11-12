@@ -204,7 +204,7 @@ export default function BookmarksView() {
       setTotal(n => n - 1);
       loadTags();
       toast(t('« {title} » supprimé.', { title: b.title || b.domain }), {
-        label: t('Annuler'),
+        label: t('Annuler|annuler une action'),
         run: async () => { await api.post(`/api/bookmarks/${b.id}/restore`); await reload(); loadTags(); flash(b.id); }
       });
     } catch (e) { toast(e instanceof ApiError ? e.message : t('Suppression impossible.')); }

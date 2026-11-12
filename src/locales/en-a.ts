@@ -82,7 +82,7 @@ export const EN_A: Record<string, string> = {
   '{bookmarks} à « {title} » ({n} déjà présents).': '{bookmarks} to “{title}” ({n} already there).',
   'Voir': 'View',
   'Donnez un titre à la nouvelle collection.': 'Give the new collection a title.',
-  'Création impossible.': 'Couldn’t create.',
+  'Création impossible.': 'Couldn’t create it.',
   'Chargement…': 'Loading…',
   'NOUVELLE COLLECTION': 'NEW COLLECTION',
   'Titre de la collection': 'Collection title',

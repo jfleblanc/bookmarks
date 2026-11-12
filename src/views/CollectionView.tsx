@@ -58,7 +58,7 @@ export default function CollectionView() {
     try {
       apply(await api.post(`/api/collections/${id}/regenerate`));
       toast(t('Nouveau lien créé. L’ancien ne fonctionne plus.'), {
-        label: t('Annuler'),
+        label: t('Annuler|annuler une action'),
         run: async () => { try { apply(await api.post(`/api/collections/${id}/restore-link`, { shareUrl: old })); } catch { toast(t('L’ancien lien n’a pas pu être remis.')); } }
       });
     } catch { toast(t('Action impossible.')); }
@@ -69,7 +69,7 @@ export default function CollectionView() {
       await api.del(`/api/collections/${id}`);
       navigate('/collections');
       toast(t('Collection « {title} » supprimée. Vos signets sont intacts.', { title: col.title }), {
-        label: t('Annuler'),
+        label: t('Annuler|annuler une action'),
         run: async () => { await api.post(`/api/collections/${id}/restore`); navigate(`/collections/${id}`); }
       });
     } catch { toast(t('Suppression impossible.')); }
@@ -85,7 +85,7 @@ export default function CollectionView() {
   async function takeOut(b: Bookmark) {
     const before = items.map(i => i.id);
     if (await patch({ itemIds: before.filter(x => x !== b.id) })) {
-      toast(t('Signet retiré de la collection.'), { label: t('Annuler'), run: () => patch({ itemIds: before }) });
+      toast(t('Signet retiré de la collection.'), { label: t('Annuler|annuler une action'), run: () => patch({ itemIds: before }) });
     }
   }
 

@@ -43,7 +43,9 @@ function applyDocument() {
 
 /** Traduit un texte français ; {nom} est remplacé par vars.nom */
 export function t(fr: string, vars?: Record<string, string | number>): string {
+  // « Annuler|annuler une action » : le texte après | précise le sens pour la traduction, il n'est jamais affiché
   let s = current === 'en' ? (EN[fr] ?? fr) : fr;
+  if (s === fr && fr.includes('|')) s = fr.slice(0, fr.indexOf('|'));
   if (vars) s = s.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
   return s;
 }

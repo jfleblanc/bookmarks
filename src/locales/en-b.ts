@@ -67,7 +67,7 @@ export const EN_B: Record<string, string> = {
   'Lien copié.': 'Link copied.',
   'Lien sélectionné. Copiez-le avec Ctrl+C ou Cmd+C.': 'Link selected. Copy it with Ctrl+C or Cmd+C.',
   'Nouveau lien créé. L’ancien ne fonctionne plus.': 'New link created. The old one no longer works.',
-  'Annuler': 'Undo',
+  'Annuler': 'Cancel',
   'L’ancien lien n’a pas pu être remis.': 'Couldn’t restore the old link.',
   'Action impossible.': 'Couldn’t complete the action.',
   'Collection « {title} » supprimée. Vos signets sont intacts.': 'Collection “{title}” deleted. Your bookmarks are untouched.',

@@ -5,5 +5,6 @@ export const EN_D: Record<string, string> = {
   'auj.': 'today',
   'hier': 'yesterday',
   'Mo': 'MB',
-  'Go': 'GB'
+  'Go': 'GB',
+  'Annuler|annuler une action': 'Undo'
 };

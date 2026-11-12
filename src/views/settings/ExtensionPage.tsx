@@ -7,7 +7,7 @@ import { Subhead } from './SettingsLayout';
 
 interface Token { id: string; name: string; created_at: number; last_used_at: number | null }
 
-const EXT_VERSION = '1.2';
+const EXT_VERSION = '1.3';
 
 function guessName() {
   const ua = navigator.userAgent;
